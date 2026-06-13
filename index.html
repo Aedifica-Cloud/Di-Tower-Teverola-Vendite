@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DI TOWER Teverola – Gestionale Unità</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --navy:#1a2e4a; --gold:#c9a84c; --green:#2e7d32; --red:#c62828;
+  --orange:#e65100; --border:#b0a090; --bg:#f5f0e8; --card:#fff;
+  --sold:#f2e0a0; --res:#b8efb8; --avail:#ffffff;
+  --radius:8px; --shadow:0 2px 12px rgba(0,0,0,.12);
+  --teal:#0e7490;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333;min-height:100vh;}
+
+/* ── HEADER ── */
+.header{background:var(--navy);color:#fff;padding:16px 24px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);}
+.logo{font-size:22px;font-weight:800;letter-spacing:1px;color:var(--gold);}
+.logo span{color:#fff;font-weight:300;}
+.saved-lbl{margin-left:auto;font-size:11px;opacity:.6;min-width:80px;text-align:right;}
+
+/* ── TABS ── */
+.tabs{background:var(--navy);border-top:1px solid rgba(255,255,255,.1);display:flex;padding:0 16px;gap:4px;flex-wrap:wrap;}
+.tab{padding:10px 20px;color:rgba(255,255,255,.55);cursor:pointer;font-size:13px;font-weight:600;border-bottom:3px solid transparent;transition:.2s;}
+.tab:hover{color:#fff;}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+/* ── KPI ── */
+#kpi{display:flex;gap:12px;padding:14px 24px;background:#fff;border-bottom:1px solid #e0d8cc;flex-wrap:wrap;}
+.kpi{background:var(--bg);border-radius:var(--radius);padding:10px 16px;min-width:120px;flex:1;}
+.kpi.t{flex:2;display:flex;flex-direction:column;gap:6px;}
+.kl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;}
+.kv{font-size:22px;font-weight:800;color:var(--navy);}
+.ks{font-size:11px;color:#888;}
+.kpi.a .kv{color:#b8860b;}
+.kpi.r .kv{color:var(--orange);}
+.kpi.d .kv{color:var(--green);}
+.pbar{height:8px;border-radius:4px;background:#e0d8cc;overflow:hidden;display:flex;}
+.pb-a{background:#b8860b;height:100%;}
+.pb-r{background:var(--orange);height:100%;}
+.pb-d{background:var(--green);height:100%;}
+
+/* ── LEGEND ── */
+.legend{display:flex;gap:16px;padding:10px 24px;background:#fff;border-bottom:1px solid #e0d8cc;flex-wrap:wrap;}
+.leg{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#555;}
+.leg-dot{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--border);}
+.leg-dot.venduto{background:var(--sold);}
+.leg-dot.riservato{background:var(--res);}
+.leg-dot.disponibile{background:var(--avail);}
+
+/* ── CONTENT ── */
+#content{padding:24px;overflow-x:auto;}
+.proj-title{font-size:18px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px;}
+.proj-sub{font-size:12px;color:#888;margin-bottom:24px;}
+
+/* ── FLOOR PLAN ── */
+.floor-sections{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;}
+.floor-section{display:flex;flex-direction:column;gap:8px;}
+.floor-sec-label{font-size:9px;font-weight:800;letter-spacing:1.5px;color:#aaa;text-align:center;text-transform:uppercase;padding:0 4px;}
+.floor-sec-units{display:flex;flex-direction:column;gap:8px;}
+.units-row{display:flex;gap:8px;align-items:stretch;}
+.sec-divider{width:3px;background:#e0d8cc;border-radius:2px;align-self:stretch;min-height:80px;}
+
+/* ── UNIT CARD ── */
+.unit-card{
+  border:2px solid var(--border);border-radius:10px;min-height:130px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;transition:filter .15s,box-shadow .15s;
+  padding:14px 10px 30px;position:relative;gap:3px;flex-shrink:0;
+}
+.unit-card:hover{filter:brightness(.92);box-shadow:0 4px 16px rgba(0,0,0,.15);}
+.unit-card.disponibile{background:#fff;}
+.unit-card.riservato{background:var(--res);}
+.unit-card.venduto{background:var(--sold);}
+.unit-tipo-tag{font-size:7px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#888;text-align:center;}
+.unit-divider{width:55%;height:1px;background:var(--border);margin:3px 0;}
+.unit-mq{font-size:8.5px;color:#666;text-align:center;line-height:1.3;}
+.unit-owner-lbl{font-size:8.5px;font-weight:700;color:var(--navy);text-align:center;max-width:100px;word-break:break-word;line-height:1.3;}
+.unit-accordo-lbl{font-size:7.5px;color:#888;font-style:italic;text-align:center;}
+.unit-badge{
+  position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+  background:var(--navy);color:#fff;border-radius:10px;padding:2px 10px;
+  font-size:8.5px;font-weight:700;white-space:nowrap;border:1.5px solid #fff;z-index:2;
+}
+.unit-codice{font-size:7px;font-weight:800;color:#666;text-align:center;letter-spacing:.5px;text-transform:uppercase;}
+
+/* ── PARKING ── */
+.park-grid{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;}
+.park-row-label{font-size:9px;font-weight:800;letter-spacing:1px;color:#aaa;text-transform:uppercase;width:100%;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid #e0d8cc;}
+.park-card{width:68px;height:76px;border:2px solid var(--border);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:default;padding:4px;gap:1px;flex-shrink:0;}
+.park-card.venduto{border-color:#c9a84c;}
+.park-card.disponibile{background:#fff;}
+.park-card.venduto{background:var(--sold);}
+.park-card.riservato{background:var(--res);}
+.park-num{font-size:18px;font-weight:800;color:var(--navy);line-height:1;}
+.park-owner{font-size:7px;color:#333;text-align:center;line-height:1.3;word-break:break-word;max-width:52px;font-weight:700;}
+.park-free{font-size:7px;color:#bbb;text-align:center;font-style:italic;}
+/* box preview su card ufficio */
+.unit-box-preview{font-size:7.5px;color:#666;text-align:center;line-height:1.4;margin-top:2px;}
+.unit-box-preview span{background:#e8e2d4;border-radius:4px;padding:1px 5px;margin:1px;display:inline-block;font-weight:700;}
+
+/* ── MODAL ── */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:16px;}
+.ov.open{display:flex;}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:700px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;}
+.mhead{background:var(--navy);color:#fff;padding:20px 24px;border-radius:12px 12px 0 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.mhead h3{font-size:16px;font-weight:800;margin-bottom:4px;}
+.ms{font-size:12px;opacity:.7;}
+.mhr{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge.disponibile{background:#e8f5e9;color:var(--green);}
+.badge.riservato{background:#fff3e0;color:var(--orange);}
+.badge.venduto{background:#fff9e6;color:#b8860b;}
+.mclose{background:rgba(255,255,255,.15);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
+.mclose:hover{background:rgba(255,255,255,.25);}
+.minfo{display:flex;flex-wrap:wrap;gap:6px;padding:12px 24px 10px;}
+.mprev{display:flex;gap:10px;padding:10px 24px 14px;border-bottom:1px solid #f0e8dc;flex-wrap:wrap;}
+.mprev-box{background:var(--bg);border-radius:8px;padding:8px 14px;flex:1;min-width:130px;}
+.mprev-lbl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:3px;}
+.mprev-val{font-size:15px;font-weight:800;color:var(--navy);}
+.mprev-val.gold{color:#b8860b;}
+.chip{background:var(--bg);padding:4px 10px;border-radius:20px;font-size:11px;color:#555;}
+.mbody{padding:20px 24px;flex:1;}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg.full{grid-column:1/-1;}
+.fg label{font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;}
+.fg input,.fg select,.fg textarea{border:1.5px solid #ddd;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;outline:none;transition:border .2s;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--navy);}
+.fg textarea{resize:vertical;min-height:60px;}
+.mfoot{padding:16px 24px;border-top:1px solid #f0e8dc;display:flex;align-items:center;gap:10px;justify-content:flex-end;}
+#msaved{font-size:12px;color:var(--green);font-weight:700;margin-right:auto;display:none;}
+.btn{padding:9px 20px;border-radius:7px;border:none;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit;}
+.btn-g{background:#eee;color:#555;}
+.btn-g:hover{background:#ddd;}
+.btn-p{background:var(--navy);color:#fff;}
+.btn-p:hover{background:#243d5c;}
+.btn-danger{background:#ffebee;color:var(--red);font-size:11px;padding:6px 12px;}
+.btn-danger:hover{background:#ffcdd2;}
+
+/* ── MODAL TABS ── */
+.mtabs{display:flex;border-bottom:2px solid #f0e8dc;padding:0 24px;background:#faf8f5;}
+.mtab{background:none;border:none;padding:10px 18px;font-size:13px;font-weight:700;color:#999;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:inherit;}
+.mtab.active{color:var(--navy);border-bottom-color:var(--navy);}
+.mtab:hover{color:var(--navy);}
+
+/* ── SAL ── */
+.sal-summary{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.sal-sbox{flex:1;min-width:120px;background:var(--bg);border-radius:8px;padding:10px 14px;}
+.sal-sbox .sl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:3px;}
+.sal-sbox .sv{font-size:16px;font-weight:800;color:var(--navy);}
+.sal-sbox.inc .sv{color:#2e7d32;}
+.sal-sbox.att .sv{color:#b8860b;}
+.sal-table{width:100%;border-collapse:collapse;font-size:12px;}
+.sal-table th{background:#f5f0e8;padding:7px 8px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#888;}
+.sal-table td{padding:7px 8px;border-bottom:1px solid #f0e8dc;vertical-align:middle;}
+.sal-table tr:last-child td{border-bottom:none;}
+.sal-table input[type=text],.sal-table input[type=date],.sal-table input[type=number]{border:1.5px solid #ddd;border-radius:5px;padding:4px 7px;font-size:12px;font-family:inherit;width:100%;box-sizing:border-box;}
+.sal-table input:disabled{background:#f5f5f5;color:#555;cursor:default;}
+.sal-check{width:18px;height:18px;cursor:pointer;accent-color:var(--green);}
+.sal-check:disabled{cursor:default;}
+.sal-del{background:#ffebee;border:none;color:var(--red);border-radius:4px;cursor:pointer;padding:3px 7px;font-size:11px;font-weight:700;}
+.sal-del:disabled{opacity:.3;cursor:default;}
+.sal-add-btn{margin-top:12px;background:#e8f0fe;color:#1a2e4a;border:1.5px solid #b0c4e8;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+.sal-add-btn:disabled{opacity:.4;cursor:default;}
+
+/* ── HISTORY ── */
+.hsep{border:none;border-top:1px solid #f0e8dc;margin:8px 0;}
+.history-wrap{padding:0 24px 20px;}
+.history-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#888;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+.history-empty{font-size:12px;color:#bbb;font-style:italic;padding:8px 0;}
+.hist-entry{border-left:3px solid var(--navy);padding:8px 0 8px 12px;margin-bottom:8px;}
+.hist-ts{font-size:10px;color:#888;font-weight:700;margin-bottom:4px;}
+.hist-change{font-size:12px;color:#444;margin-bottom:2px;}
+.hist-change strong{color:var(--navy);}
+.hist-change .from{color:var(--red);text-decoration:line-through;font-style:italic;}
+.hist-change .to{color:var(--green);font-weight:700;}
+.hist-change .empty{color:#bbb;font-style:italic;}
+
+/* ── DASHBOARD ── */
+.dash{padding:24px;display:flex;flex-direction:column;gap:28px;}
+.dash-section-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #e0d8cc;}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;}
+.dcard{background:#fff;border-radius:12px;box-shadow:var(--shadow);overflow:hidden;}
+.dcard-head{background:var(--navy);color:#fff;padding:14px 18px;}
+.dcard-head h3{font-size:15px;font-weight:800;}
+.dcard-head p{font-size:11px;opacity:.6;margin-top:2px;}
+.dcard-body{padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+.drow{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.drow-lbl{font-size:12px;color:#666;display:flex;align-items:center;gap:6px;}
+.drow-lbl .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.drow-val{font-size:14px;font-weight:800;color:var(--navy);}
+.drow-val.gold{color:#b8860b;}
+.drow-val.green{color:var(--green);}
+.drow-val.orange{color:var(--orange);}
+.dbar-wrap{height:6px;background:#f0e8dc;border-radius:3px;overflow:hidden;margin-top:2px;}
+.dbar-fill{height:100%;border-radius:3px;transition:width .4s;}
+.dsep{border:none;border-top:1px solid #f0e8dc;}
+.dtag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;margin-right:4px;margin-top:2px;}
+.dtag.acq{background:#e3f2fd;color:#1565c0;}
+.dtag.loc{background:#e8f5e9;color:#1b5e20;}
+.dtag.tra{background:#f3e5f5;color:#6a1b9a;}
+.dcard.global .dcard-head{background:linear-gradient(135deg,var(--navy),#2e5084);}
+.dcard.global .dcard-body{background:#fafaf8;}
+.dglobal-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;}
+.dgn{background:var(--bg);border-radius:8px;padding:10px;text-align:center;}
+.dgn .dgn-v{font-size:20px;font-weight:800;color:var(--navy);}
+.dgn .dgn-l{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:#888;margin-top:2px;}
+.dgn.a .dgn-v{color:#b8860b;}
+.dgn.d .dgn-v{color:var(--green);}
+.dgn.r .dgn-v{color:var(--orange);}
+
+/* ── PRICE TABLE ── */
+.ptable-wrap{background:#fff;border-radius:12px;box-shadow:var(--shadow);overflow:hidden;}
+.ptable-head{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+.ptable-head h3{font-size:14px;font-weight:800;}
+.ptable-head p{font-size:11px;opacity:.6;}
+.ptable{width:100%;border-collapse:collapse;font-size:12px;}
+.ptable thead tr{background:#f5f0e8;}
+.ptable th{padding:8px 12px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#888;border-bottom:2px solid #e0d8cc;white-space:nowrap;}
+.ptable td{padding:8px 12px;border-bottom:1px solid #f0e8dc;vertical-align:middle;}
+.ptable tr:last-child td{border-bottom:none;}
+.ptable tr:hover td{background:#faf7f2;}
+.ptable .badge-sm{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;}
+.ptable .badge-sm.venduto{background:#fff9e6;color:#b8860b;}
+.ptable .badge-sm.riservato{background:#fff3e0;color:var(--orange);}
+.ptable .badge-sm.disponibile{background:#e8f5e9;color:var(--green);}
+.ptable tfoot td{font-weight:800;background:#f5f0e8;border-top:2px solid #e0d8cc;padding:10px 12px;}
+
+/* ── SAL CASH FLOW ── */
+.cf-wrap{background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:20px 24px;}
+.cf-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.cf-bar-lbl{font-size:11px;color:#666;width:80px;flex-shrink:0;}
+.cf-bar-track{flex:1;background:#f0e8dc;border-radius:4px;height:20px;position:relative;overflow:hidden;}
+.cf-bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;transition:width .4s;}
+.cf-bar-val{font-size:11px;font-weight:700;color:var(--navy);width:100px;text-align:right;flex-shrink:0;}
+.cf-client-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8dc;gap:8px;flex-wrap:wrap;}
+.cf-client-row:last-child{border-bottom:none;}
+.cf-pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;}
+.cf-pill.inc{background:#e8f5e9;color:#2e7d32;}
+.cf-pill.att{background:#fff8e1;color:#b8860b;}
+.cf-pill.no{background:#f5f5f5;color:#999;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">DI TOWER <span>Teverola</span></div>
+  <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
+  <div class="saved-lbl" id="saved"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('pt')">🏢 Piano Terra</div>
+  <div class="tab" onclick="sw('p1')">🏢 Piano Primo</div>
+  <div class="tab" onclick="sw('p2')">🏢 Piano Secondo</div>
+  <div class="tab" onclick="sw('pi1')">🅿️ Piano -1</div>
+  <div class="tab" onclick="sw('pi2')">🅿️ Piano -2</div>
+  <div class="tab" onclick="sw('incassi')">💶 Incassi SAL</div>
+  <div class="tab" onclick="sw('riepilogo')" style="margin-left:auto;">📊 Riepilogo</div>
+</div>
+
+<div id="kpi"></div>
+<div class="legend" id="legend-bar">
+  <div class="leg"><div class="leg-dot venduto"></div>Venduto</div>
+  <div class="leg"><div class="leg-dot riservato"></div>Riservato</div>
+  <div class="leg"><div class="leg-dot disponibile"></div>Disponibile</div>
+</div>
+
+<div id="content"></div>
+
+<!-- MODAL -->
+<div class="ov" id="ov">
+  <div class="modal">
+    <div class="mhead">
+      <div>
+        <h3 id="mt">—</h3>
+        <div class="ms" id="ms">—</div>
+      </div>
+      <div class="mhr">
+        <span class="badge" id="mb">—</span>
+        <button class="mclose" onclick="cm()">✕</button>
+      </div>
+    </div>
+    <div class="minfo" id="mi"></div>
+    <div class="mprev" id="mprev"></div>
+    <div class="mtabs">
+      <button class="mtab active" id="tab-btn-scheda" onclick="switchMTab('scheda')">📋 Scheda</button>
+      <button class="mtab" id="tab-btn-sal" onclick="switchMTab('sal')">💰 SAL / Pagamenti</button>
+    </div>
+
+    <div id="tab-scheda">
+      <div class="mbody">
+        <div class="fg2">
+          <div class="fg full">
+            <label>Stato</label>
+            <select id="fst" onchange="rb()">
+              <option value="disponibile">🟢 Disponibile</option>
+              <option value="riservato">🟠 Riservato</option>
+              <option value="venduto">🔴 Venduto</option>
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Ragione Sociale / Azienda</label>
+            <input id="fow" type="text" placeholder="Nome azienda o ragione sociale">
+          </div>
+          <div class="fg full">
+            <label>Nome e Cognome (soggetto privato)</label>
+            <input id="fnome" type="text" placeholder="es. Mario Rossi">
+          </div>
+          <div class="fg">
+            <label>Codice Unità</label>
+            <input id="fcod" type="text" placeholder="es. DT-PT-01">
+          </div>
+          <div class="fg">
+            <label>Telefono</label>
+            <input id="fph" type="tel" placeholder="+39 000 000 0000">
+          </div>
+          <div class="fg">
+            <label>Email</label>
+            <input id="fem" type="email" placeholder="email@esempio.it">
+          </div>
+          <div class="fg">
+            <label>Canone / Prezzo Concordato (€)</label>
+            <input id="fpr" type="text" placeholder="es. 180.000">
+          </div>
+          <div class="fg">
+            <label>Data Accordo</label>
+            <input id="fda" type="date">
+          </div>
+          <div class="fg">
+            <label>Durata Contratto</label>
+            <input id="fdur" type="text" placeholder="es. 6+6 anni">
+          </div>
+          <div class="fg">
+            <label>🅿️ Posto Auto Piano -1 (n°)</label>
+            <input id="fbx1" type="text" placeholder="es. 15 oppure 15/16">
+          </div>
+          <div class="fg">
+            <label>🅿️ Posto Auto Piano -2 (n°)</label>
+            <input id="fbx2" type="text" placeholder="es. 45 oppure 45/46">
+          </div>
+          <div class="fg">
+            <label>Tipo Accordo</label>
+            <select id="fac">
+              <option value="">— nessuno —</option>
+              <option value="Vendita">Vendita</option>
+              <option value="Locazione">Locazione</option>
+              <option value="In trattativa">In trattativa</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Notaio / Studio Legale</label>
+            <input id="fno" type="text" placeholder="Nome notaio o studio">
+          </div>
+          <div class="fg full">
+            <label>Link Google Drive 🔗</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="fdr" type="url" placeholder="https://drive.google.com/…" style="flex:1;">
+              <a id="fdr-btn" href="#" target="_blank" rel="noopener" style="display:none;padding:6px 10px;background:var(--navy);color:white;border-radius:6px;text-decoration:none;font-size:12px;white-space:nowrap;">Apri ↗</a>
+            </div>
+          </div>
+          <div class="fg full">
+            <label>Note interne</label>
+            <textarea id="fnt" placeholder="Condizioni, scadenze, annotazioni…"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-sal" style="display:none">
+      <div class="mbody">
+        <div class="sal-summary" id="sal-summary"></div>
+        <div style="overflow-x:auto">
+          <table class="sal-table">
+            <thead><tr>
+              <th style="min-width:130px">Voce</th>
+              <th style="min-width:110px">Importo (€)</th>
+              <th style="min-width:120px">Data Prevista</th>
+              <th style="min-width:120px">Data Incasso</th>
+              <th style="width:70px;text-align:center">Incassato</th>
+              <th style="width:40px"></th>
+            </tr></thead>
+            <tbody id="sal-tbody"></tbody>
+          </table>
+        </div>
+        <button class="sal-add-btn" id="btn-add-sal" onclick="addSalRow()" style="display:none">+ Aggiungi Voce</button>
+      </div>
+    </div>
+
+    <div class="mfoot">
+      <span id="msaved">✓ Salvato</span>
+      <button class="btn btn-danger" onclick="clearHistory()">🗑 Cancella storico</button>
+      <button class="btn" id="btn-edit" style="background:#e8f0fe;color:#1a2e4a;border:1.5px solid #b0c4e8;display:none" onclick="unlockForm()">✏️ Modifica</button>
+      <button class="btn btn-g" id="btn-cancel" onclick="cm()" style="display:none">Annulla</button>
+      <button class="btn btn-p" id="btn-save" onclick="save()" style="display:none">💾 Salva Scheda</button>
+    </div>
+    <hr class="hsep">
+    <div class="history-wrap">
+      <div class="history-title">
+        <span>📋 Storico Modifiche</span>
+        <span id="hist-count" style="font-size:10px;color:#bbb;"></span>
+      </div>
+      <div id="hist-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════ SUPABASE ═══════
+const SUPABASE_URL = "https://pwmqkqhefjlcmbhqghzk.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3bXFrcWhlZmpsY21iaHFnaHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzODg4MDksImV4cCI6MjA5NTk2NDgwOX0.xvfPXM2as8UKxXrEvOmwe0Eutj0kq9sQ1KRPj0ngkuM";
+const STATE_ID = "ditower1";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ═══════ DATI BASE ═══════
+const BASE = {
+  pt: {
+    name: 'Piano Terra', sub: 'Di Tower – Teverola', quota: '±0,00',
+    units: {
+      LC1: { lbl:'L.C. 1', sl:'241,50', tipo:'Locale Commerciale', st:'disponibile', owner:'', codice:'DT-PT-01', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      LC2: { lbl:'L.C. 2', sl:'234,50', tipo:'Locale Commerciale', st:'disponibile', owner:'', codice:'DT-PT-02', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      LC3: { lbl:'L.C. 3', sl:'251,00', tipo:'Locale Commerciale', st:'venduto', owner:'N&B Hospitality', codice:'DT-PT-03', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      LC4: { lbl:'L.C. 4', sl:'420,00', tipo:'Locale Commerciale', st:'venduto', owner:'Log Center', codice:'DT-PT-04', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      LC5: { lbl:'L.C. 5', sl:'420,00', tipo:'Locale Commerciale', st:'venduto', owner:'Log Center', codice:'DT-PT-05', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+    }
+  },
+  p1: {
+    name: 'Piano Primo', sub: 'Di Tower – Teverola', quota: '+4,35',
+    units: {
+      U12: { lbl:'Uffici 1-2', sl:'227,00', tipo:'Ufficio', st:'venduto', owner:'Edilizia Server', codice:'DT-P1-12', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U3:  { lbl:'Ufficio 3',  sl:'246,30', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P1-03', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U4:  { lbl:'Ufficio 4',  sl:'346,40', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P1-04', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U5:  { lbl:'Ufficio 5',  sl:'219,50', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P1-05', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U6:  { lbl:'Ufficio 6',  sl:'347,00', tipo:'Ufficio', st:'venduto', owner:'Elfo', codice:'DT-P1-06', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U7:  { lbl:'Ufficio 7',  sl:'157,00', tipo:'Ufficio', st:'venduto', owner:'Nobis', codice:'DT-P1-07', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U8:  { lbl:'Ufficio 8',  sl:'135,00', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P1-08', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U9:  { lbl:'Ufficio 9',  sl:'158,00', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P1-09', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+    }
+  },
+  p2: {
+    name: 'Piano Secondo', sub: 'Di Tower – Teverola', quota: '+7,90',
+    units: {
+      U1: { lbl:'Ufficio 1', sl:'220,15', tipo:'Ufficio', st:'venduto', owner:'Edilizia Server', codice:'DT-P2-01', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U2: { lbl:'Ufficio 2', sl:'247,00', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P2-02', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U3: { lbl:'Ufficio 3', sl:'236,40', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P2-03', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U4: { lbl:'Ufficio 4', sl:'219,00', tipo:'Ufficio', st:'disponibile', owner:'', codice:'DT-P2-04', price:'', accordo:'', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U5: { lbl:'Ufficio 5', sl:'150,00', tipo:'Ufficio', st:'venduto', owner:"Arkipiu'", codice:'DT-P2-05', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U6: { lbl:'Ufficio 6', sl:'170,00', tipo:'Ufficio', st:'venduto', owner:"Arkipiu'", codice:'DT-P2-06', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U7: { lbl:'Ufficio 7', sl:'240,00', tipo:'Ufficio', st:'venduto', owner:"Arkipiu'", codice:'DT-P2-07', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+      U8: { lbl:'Ufficio 8', sl:'214,00', tipo:'Ufficio', st:'venduto', owner:"Arkipiu'", codice:'DT-P2-08', price:'', accordo:'Locazione', dur:'', drive:'', phone:'', email:'', date:'', notaio:'', notes:'', history:[] },
+    }
+  }
+};
+
+// ═══════ INIT PARCHEGGI + box1/box2 su tutti gli uffici ═══════
+;(function(){
+  // Aggiungi box1 e box2 a tutte le unità pt/p1/p2
+  ['pt','p1','p2'].forEach(pk => {
+    Object.values(BASE[pk].units).forEach(u => { u.box1 = ''; u.box2 = ''; u.nome = ''; });
+  });
+  // Piani interrati — solo rendering, non hanno vita propria
+  BASE.pi1 = { name:'1° Piano Interrato', sub:'Di Tower – Teverola', quota:'-3,00', units:{} };
+  BASE.pi2 = { name:'2° Piano Interrato', sub:'Di Tower – Teverola', quota:'-6,00', units:{} };
+})();
+
+// Layout planimetrico per piano — unica fila continua
+const LAYOUTS = {
+  pt: ['LC1','LC2','LC3','LC4','LC5'],
+  p1: ['U12','U3','U4','U5','U6','U7','U8','U9'],
+  p2: ['U1','U2','U3','U4','U5','U6','U7','U8'],
+};
+
+// ═══════ STATO ═══════
+let proj = 'pt', curId = null, prevParkProj = null;
+let D = JSON.parse(JSON.stringify(BASE));
+
+const FLBL = {
+  st:'Stato', owner:'Ragione Sociale', nome:'Nome e Cognome', price:'Canone/Prezzo (€)',
+  phone:'Telefono', email:'Email', date:'Data Accordo', notaio:'Notaio', notes:'Note',
+  accordo:'Tipo Accordo', drive:'Link Drive', codice:'Codice', dur:'Durata',
+  box1:'Posto Auto Piano -1', box2:'Posto Auto Piano -2'
+};
+const STLBL = { disponibile:'Disponibile', riservato:'Riservato', venduto:'Venduto' };
+
+// ═══════ SUPABASE LOAD ═══════
+function applySnapshot(j) {
+  if (j) {
+    const flds = ['st','owner','nome','codice','price','phone','email','date','notaio','notes','accordo','drive','dur','box1','box2'];
+    Object.keys(j).forEach(p => {
+      if (!D[p]) return;
+      Object.keys(j[p]).forEach(uid => {
+        if (!D[p].units[uid]) return;
+        const src = j[p][uid];
+        flds.forEach(f => { if (src[f] !== undefined) D[p].units[uid][f] = src[f]; });
+        if (Array.isArray(src.history)) D[p].units[uid].history = src.history;
+        if (Array.isArray(src.sal)) D[p].units[uid].sal = src.sal;
+      });
+    });
+  }
+  const el = document.getElementById('saved');
+  const t = new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  if (el) el.textContent = '🟢 Sincronizzato ' + t;
+  if (proj === 'riepilogo') renderDashboard();
+  else if (proj === 'incassi') renderIncassi();
+  else { renderKPI(); renderPlan(); }
+}
+
+function fetchState() {
+  sb.from('app_state').select('data').eq('id', STATE_ID).maybeSingle()
+    .then(({ data, error }) => {
+      if (error) { document.getElementById('saved').textContent = '🔴 Errore'; return; }
+      applySnapshot(data ? data.data : null);
+    });
+}
+
+function load() {
+  document.getElementById('saved').textContent = 'Connessione…';
+  fetchState();
+  sb.channel('app_state_' + STATE_ID)
+    .on('postgres_changes', { event:'*', schema:'public', table:'app_state', filter:'id=eq.'+STATE_ID }, () => fetchState())
+    .subscribe();
+}
+
+function store() {
+  const out = {};
+  Object.keys(D).forEach(p => {
+    out[p] = {};
+    Object.keys(D[p].units).forEach(uid => {
+      const u = D[p].units[uid];
+      out[p][uid] = {
+        st:u.st, owner:u.owner||'', nome:u.nome||'', codice:u.codice||'', price:u.price||'',
+        phone:u.phone||'', email:u.email||'', date:u.date||'', notaio:u.notaio||'',
+        notes:u.notes||'', accordo:u.accordo||'', drive:u.drive||'', dur:u.dur||'',
+        box1:u.box1||'', box2:u.box2||'',
+        history:u.history||[], sal:u.sal||[]
+      };
+    });
+  });
+  const el = document.getElementById('saved');
+  if (el) el.textContent = 'Salvataggio…';
+  sb.from('app_state').upsert({ id:STATE_ID, data:out, updated_at:new Date().toISOString() })
+    .then(({ error }) => {
+      if (error) { if (el) el.textContent = '🔴 Errore salvataggio'; return; }
+      const t = new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+      if (el) el.textContent = '🟢 Salvato ' + t;
+    });
+}
+
+// ═══════ HELPERS ═══════
+function parseSL(sl) {
+  if (!sl || sl === '—') return 0;
+  return parseFloat(String(sl).replace(',','.')) || 0;
+}
+function fmtN(n) { return n.toLocaleString('it-IT'); }
+function fmtEur(n) { return n ? '€ ' + Math.abs(n).toLocaleString('it-IT') : '—'; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function tsNow() {
+  const n = new Date();
+  return n.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' +
+         n.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+}
+function formatPriceDisplay(str) {
+  if (!str) return '';
+  const n = parseFloat(String(str).replace(/\./g,'').replace(',','.'));
+  if (isNaN(n)) return str;
+  return n.toLocaleString('it-IT', {maximumFractionDigits:0});
+}
+function parsePriceInput(str) {
+  return String(str).replace(/\./g,'').replace(',','').trim();
+}
+
+// ═══════ KPI ═══════
+function renderKPI() {
+  const units = Object.values(D[proj].units);
+  const tot = units.length;
+  const a = units.filter(u=>u.st==='venduto').length;
+  const r = units.filter(u=>u.st==='riservato').length;
+  const d = units.filter(u=>u.st==='disponibile').length;
+  const totMq = units.reduce((s,u)=>s+parseSL(u.sl),0);
+  const assegMq = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+parseSL(u.sl),0);
+  const eurF = u => parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
+  const ricavi = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+eurF(u),0);
+  const pa = tot?(a/tot*100).toFixed(0):0;
+  const pr = tot?(r/tot*100).toFixed(0):0;
+  const pd = tot?(d/tot*100).toFixed(0):0;
+
+  document.getElementById('kpi').innerHTML = `
+    <div class="kpi t">
+      <div class="kl">Totale Unità — ${D[proj].name}</div>
+      <div class="kv">${tot}</div>
+      <div class="ks">${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq totali':'—'}</div>
+      <div class="pbar"><div class="pb-a" style="width:${pa}%"></div><div class="pb-r" style="width:${pr}%"></div><div class="pb-d" style="width:${pd}%"></div></div>
+    </div>
+    <div class="kpi a"><div class="kl">Assegnate</div><div class="kv">${a}</div><div class="ks">${pa}% del totale</div></div>
+    <div class="kpi r"><div class="kl">Riservate</div><div class="kv">${r}</div><div class="ks">${pr}% del totale</div></div>
+    <div class="kpi d"><div class="kl">Disponibili</div><div class="kv">${d}</div><div class="ks">${pd}% del totale</div></div>
+    <div class="kpi" style="background:#fff8e6;border-color:#f0d060">
+      <div class="kl">Mq Assegnati</div>
+      <div class="kv" style="color:#b8860b;font-size:17px">${assegMq>0?assegMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq':'—'}</div>
+      <div class="ks">su ${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq tot.':'—'}</div>
+    </div>
+    <div class="kpi" style="background:#f0f8f0;border-color:#a8d8a8">
+      <div class="kl">Ricavi Contrattualizzati</div>
+      <div class="kv" style="color:#2e7d32;font-size:17px">${ricavi>0?'€ '+fmtN(ricavi):'—'}</div>
+      <div class="ks">da schede con importo</div>
+    </div>`;
+}
+
+// ═══════ PLANIMETRIA ═══════
+function renderPlan() {
+  const p = D[proj];
+  const ids = LAYOUTS[proj];
+  let html = `<div class="proj-title">${p.name} &mdash; Di Tower Teverola</div>
+              <div class="proj-sub">Quota: ${p.quota} · ${Object.keys(p.units).length} unità · Clicca su un'unità per aprire la scheda</div>
+              <div class="units-row" style="flex-wrap:wrap;gap:10px;">`;
+
+  ids.forEach(uid => {
+    const u = p.units[uid];
+    if (!u) return;
+    const sl = parseSL(u.sl);
+    const w = sl > 0 ? Math.max(100, Math.min(300, Math.round(sl * 0.55))) : 160;
+    // box preview
+    const boxPrev = [
+      u.box1 ? `<span>🅿️-1: ${u.box1}</span>` : '',
+      u.box2 ? `<span>🅿️-2: ${u.box2}</span>` : '',
+    ].filter(Boolean).join('');
+    html += `
+      <div class="unit-card ${u.st}" style="width:${w}px" onclick="openM('${uid}')">
+        <div class="unit-tipo-tag">${u.tipo}</div>
+        <div class="unit-divider"></div>
+        <div class="unit-mq">🏢 ${u.sl !== '—' ? u.sl + ' mq' : 'mq da verificare'}</div>
+        ${u.owner ? `<div class="unit-owner-lbl">${esc(u.owner)}</div>` : ''}
+        ${u.nome ? `<div class="unit-owner-lbl" style="color:#555;font-weight:600;">${esc(u.nome)}</div>` : ''}
+        ${u.accordo ? `<div class="unit-accordo-lbl">${u.accordo}</div>` : ''}
+        ${boxPrev ? `<div class="unit-box-preview">${boxPrev}</div>` : ''}
+        ${u.codice ? `<div class="unit-codice">${u.codice}</div>` : ''}
+        <div class="unit-badge">${u.lbl}</div>
+      </div>`;
+  });
+
+  html += `</div>`;
+  document.getElementById('content').innerHTML = html;
+}
+
+// ═══════ SWITCH TAB ═══════
+function sw(p) {
+  proj = p;
+  const keys = ['pt','p1','p2','pi1','pi2','incassi','riepilogo'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', keys[i]===p));
+  const isDash = p==='riepilogo', isInc = p==='incassi', isPark = p==='pi1'||p==='pi2';
+  document.getElementById('kpi').style.display = (isDash||isInc) ? 'none' : '';
+  document.getElementById('legend-bar').style.display = (isDash||isInc) ? 'none' : '';
+  if (isDash) renderDashboard();
+  else if (isInc) renderIncassi();
+  else if (isPark) { renderParkingKPI(); renderParking(); }
+  else { renderKPI(); renderPlan(); }
+}
+
+// ═══════ KPI PARCHEGGI ═══════
+function renderParkingKPI() {
+  const units = Object.values(D[proj].units);
+  const tot = units.length;
+  const a = units.filter(u=>u.st==='venduto').length;
+  const r = units.filter(u=>u.st==='riservato').length;
+  const d = units.filter(u=>u.st==='disponibile').length;
+  const pa=tot?(a/tot*100).toFixed(0):0, pr=tot?(r/tot*100).toFixed(0):0, pd=tot?(d/tot*100).toFixed(0):0;
+  const eurF = u => parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
+  const ricavi = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+eurF(u),0);
+  document.getElementById('kpi').innerHTML = `
+    <div class="kpi t">
+      <div class="kl">Posti Auto — ${D[proj].name}</div>
+      <div class="kv">${tot}</div>
+      <div class="ks">Quota: ${D[proj].quota}</div>
+      <div class="pbar"><div class="pb-a" style="width:${pa}%"></div><div class="pb-r" style="width:${pr}%"></div><div class="pb-d" style="width:${pd}%"></div></div>
+    </div>
+    <div class="kpi a"><div class="kl">Assegnati</div><div class="kv">${a}</div><div class="ks">${pa}% del totale</div></div>
+    <div class="kpi r"><div class="kl">Riservati</div><div class="kv">${r}</div><div class="ks">${pr}% del totale</div></div>
+    <div class="kpi d"><div class="kl">Liberi</div><div class="kv">${d}</div><div class="ks">${pd}% del totale</div></div>
+    <div class="kpi" style="background:#f0f8f0;border-color:#a8d8a8">
+      <div class="kl">Ricavi Contrattualizzati</div>
+      <div class="kv" style="color:#2e7d32;font-size:17px">${ricavi>0?'€ '+fmtN(ricavi):'—'}</div>
+      <div class="ks">da schede con importo</div>
+    </div>`;
+}
+
+// ═══════ HELPER PARCHEGGI ═══════
+function range(from, to) {
+  const arr = [];
+  for (let i=from; i<=to; i++) arr.push(i);
+  return arr;
+}
+
+// Costruisce mappa postNumber → {owner, uid, projKey} leggendo box1/box2 dagli uffici
+function buildOwnerMap(parkLevel) {
+  const boxField = parkLevel === 'pi1' ? 'box1' : 'box2';
+  const ownerMap = {};
+  ['pt','p1','p2'].forEach(pk => {
+    Object.entries(D[pk].units).forEach(([uid, u]) => {
+      if (u[boxField]) {
+        String(u[boxField]).split(/[\s,/]+/).forEach(nb => {
+          const n = parseInt(nb.trim());
+          if (n) ownerMap[n] = { owner: u.owner||'', uid, projKey: pk };
+        });
+      }
+    });
+  });
+  return ownerMap;
+}
+
+// Apre la scheda dell'ufficio collegato dal tab parcheggio
+function openUnitFromParking(projKey, uid) {
+  prevParkProj = proj; // memorizza che siamo arrivati dal parcheggio
+  proj = projKey;
+  openM(uid);
+}
+
+// ═══════ RENDER PARCHEGGI ═══════
+function renderParking() {
+  const p = D[proj];
+  const tot = proj === 'pi1' ? 101 : 114;
+  const ownerMap = buildOwnerMap(proj);
+
+  // Contatori per KPI contestuale
+  const assegnati = Object.keys(ownerMap).length;
+  const liberi = tot - assegnati;
+
+  const rowDefs = proj==='pi1'
+    ? [
+        { label:'Fila 1 — Posti 1÷14',   spots: range(1,14) },
+        { label:'Fila 2 — Posti 15÷28',  spots: range(15,28) },
+        { label:'Fila 3 — Posti 29÷45',  spots: range(29,45) },
+        { label:'Fila 4 — Posti 46÷67',  spots: range(46,67) },
+        { label:'Fila 5 — Posti 68÷82',  spots: range(68,82) },
+        { label:'Fila 6 — Posti 83÷101', spots: range(83,101) },
+      ]
+    : [
+        { label:'Fila 1 — Posti 1÷14',    spots: range(1,14) },
+        { label:'Fila 2 — Posti 15÷28',   spots: range(15,28) },
+        { label:'Fila 3 — Posti 29÷46',   spots: range(29,46) },
+        { label:'Fila 4 — Posti 47÷69',   spots: range(47,69) },
+        { label:'Fila 5 — Posti 70÷91',   spots: range(70,91) },
+        { label:'Fila 6 — Posti 92÷114',  spots: range(92,114) },
+      ];
+
+  let html = `
+    <div class="proj-title">${p.name} — Di Tower Teverola</div>
+    <div class="proj-sub">Quota: ${p.quota} · ${tot} posti auto totali ·
+      <strong style="color:#b8860b">${assegnati} assegnati</strong> ·
+      <strong style="color:#2e7d32">${liberi} liberi</strong> ·
+      Clicca un posto assegnato per aprire la scheda dell'ufficio collegato
+    </div>
+    <div class="park-grid">`;
+
+  rowDefs.forEach(row => {
+    html += `<div class="park-row-label">${row.label}</div>`;
+    row.spots.forEach(n => {
+      const info = ownerMap[n];
+      const st = info ? 'venduto' : 'disponibile';
+      html += `
+        <div class="park-card ${st}">
+          <div class="park-num">${n}</div>
+          ${info && info.owner
+            ? `<div class="park-owner">${esc(info.owner)}</div>`
+            : `<div class="park-free">libero</div>`}
+        </div>`;
+    });
+  });
+
+  html += `</div>`;
+  document.getElementById('content').innerHTML = html;
+}
+
+// KPI parcheggi usa ownerMap per contare assegnati reali
+function renderParkingKPI() {
+  const tot = proj === 'pi1' ? 101 : 114;
+  const ownerMap = buildOwnerMap(proj);
+  const a = Object.keys(ownerMap).length;
+  const d = tot - a;
+  const pa = (a/tot*100).toFixed(0), pd = (d/tot*100).toFixed(0);
+  document.getElementById('kpi').innerHTML = `
+    <div class="kpi t">
+      <div class="kl">Posti Auto — ${D[proj].name}</div>
+      <div class="kv">${tot}</div>
+      <div class="ks">Quota: ${D[proj].quota} · assegnazioni da schede uffici</div>
+      <div class="pbar"><div class="pb-a" style="width:${pa}%"></div><div class="pb-d" style="width:${pd}%"></div></div>
+    </div>
+    <div class="kpi a"><div class="kl">Assegnati</div><div class="kv">${a}</div><div class="ks">${pa}% del totale</div></div>
+    <div class="kpi d"><div class="kl">Liberi</div><div class="kv">${d}</div><div class="ks">${pd}% del totale</div></div>
+    <div class="kpi" style="background:#fff8e1;border-color:#ffe082">
+      <div class="kl">ℹ️ Come funziona</div>
+      <div class="kv" style="font-size:11px;color:#888;font-weight:400;line-height:1.4;">I posti si colorano in base ai <strong>campi "Posto Auto"</strong> compilati nelle schede degli uffici.</div>
+    </div>`;
+}
+
+// ═══════ OPEN MODAL ═══════
+function openM(uid) {
+  curId = uid;
+  const u = D[proj].units[uid], p = D[proj];
+  document.getElementById('mt').textContent = `${p.name} — ${u.lbl}`;
+  document.getElementById('ms').textContent = `${u.tipo} · S.L. ${u.sl} mq`;
+  document.getElementById('mi').innerHTML = `
+    <span class="chip" style="background:#1a2e4a;color:#fff;font-weight:700;font-size:13px">🔑 ${uid}</span>
+    <span class="chip">Piano: <strong>${p.name}</strong></span>
+    <span class="chip">Tipo: <strong>${u.tipo}</strong></span>
+    <span class="chip">S.L.: <strong>${u.sl} mq</strong></span>
+    ${u.codice?`<span class="chip">Cod.: <strong>${u.codice}</strong></span>`:''}`;
+
+  document.getElementById('fst').value = u.st;
+  document.getElementById('fow').value = u.owner||'';
+  document.getElementById('fnome').value = u.nome||'';
+  document.getElementById('fcod').value = u.codice||'';
+  document.getElementById('fph').value = u.phone||'';
+  document.getElementById('fem').value = u.email||'';
+  document.getElementById('fpr').value = formatPriceDisplay(u.price);
+  document.getElementById('fda').value = u.date||'';
+  document.getElementById('fdur').value = u.dur||'';
+  document.getElementById('fac').value = u.accordo||'';
+  document.getElementById('fno').value = u.notaio||'';
+  document.getElementById('fdr').value = u.drive||'';
+  document.getElementById('fnt').value = u.notes||'';
+  document.getElementById('fbx1').value = u.box1||'';
+  document.getElementById('fbx2').value = u.box2||'';
+
+  const drBtn = document.getElementById('fdr-btn');
+  if (u.drive) { drBtn.href = u.drive; drBtn.style.display = 'inline-block'; }
+  else drBtn.style.display = 'none';
+
+  // Preview prezzi
+  const sl = parseSL(u.sl);
+  const concEur = parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
+  document.getElementById('mprev').innerHTML = `
+    <div class="mprev-box">
+      <div class="mprev-lbl">📐 Superficie lorda</div>
+      <div class="mprev-val">${sl>0?sl.toLocaleString('it-IT',{minimumFractionDigits:2})+' mq':'—'}</div>
+    </div>
+    <div class="mprev-box">
+      <div class="mprev-lbl">💶 Canone / Prezzo concordato</div>
+      <div class="mprev-val gold">${concEur>0?'€ '+concEur.toLocaleString('it-IT'):'—'}</div>
+    </div>`;
+
+  rb();
+  renderHistory(u);
+  switchMTab('scheda');
+  setFormLocked(false);
+  document.getElementById('msaved').style.display = 'none';
+  document.getElementById('ov').classList.add('open');
+}
+
+function rb() {
+  const v = document.getElementById('fst').value;
+  const b = document.getElementById('mb');
+  b.textContent = STLBL[v]||v;
+  b.className = 'badge ' + v;
+}
+
+function setFormLocked(locked) {
+  const fields = ['fow','fcod','fph','fem','fpr','fda','fdur','fac','fno','fdr','fnt','fst'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = locked;
+    el.style.background = locked ? '#f5f5f5' : '';
+  });
+  const drBtn = document.getElementById('fdr-btn');
+  if (drBtn) drBtn.style.pointerEvents = locked ? 'none' : '';
+  document.getElementById('btn-edit').style.display = locked ? 'inline-flex' : 'none';
+  document.getElementById('btn-cancel').style.display = !locked ? 'inline-flex' : 'none';
+  document.getElementById('btn-save').style.display = !locked ? 'inline-flex' : 'none';
+  const addSalBtn = document.getElementById('btn-add-sal');
+  if (addSalBtn) addSalBtn.style.display = locked ? 'none' : 'inline-block';
+  if (!locked) {
+    const salTab = document.getElementById('tab-sal');
+    if (salTab && salTab.style.display !== 'none') renderSalTab();
+  }
+}
+
+function unlockForm() { setFormLocked(false); }
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'fpr') {
+    const raw = e.target.value.replace(/\./g,'').replace(/[^0-9]/g,'');
+    if (raw !== '') {
+      const formatted = parseInt(raw,10).toLocaleString('it-IT');
+      e.target.value = formatted;
+    }
+    const concEur = parseFloat(raw) || 0;
+    const box2 = document.getElementById('mprev').children[1];
+    if (box2) box2.querySelector('.mprev-val').textContent = concEur>0 ? '€ '+concEur.toLocaleString('it-IT') : '—';
+  }
+  if (e.target.id === 'fdr') {
+    const drBtn = document.getElementById('fdr-btn');
+    const v = e.target.value.trim();
+    drBtn.href = v||'#';
+    drBtn.style.display = v ? 'inline-block' : 'none';
+  }
+});
+
+// ═══════ MODAL TABS ═══════
+function switchMTab(tab) {
+  document.getElementById('tab-scheda').style.display = tab==='scheda' ? '' : 'none';
+  document.getElementById('tab-sal').style.display = tab==='sal' ? '' : 'none';
+  document.getElementById('tab-btn-scheda').classList.toggle('active', tab==='scheda');
+  document.getElementById('tab-btn-sal').classList.toggle('active', tab==='sal');
+  if (tab==='sal') renderSalTab();
+}
+
+// ═══════ SAL ═══════
+function renderSalTab() {
+  if (!curId) return;
+  const u = D[proj].units[curId];
+  const sal = u.sal || [];
+  const locked = document.getElementById('btn-edit').style.display !== 'none';
+  const tot = sal.reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+  const inc = sal.filter(r=>r.incassato).reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+  const att = tot - inc;
+  document.getElementById('sal-summary').innerHTML = `
+    <div class="sal-sbox"><div class="sl">Totale SAL</div><div class="sv">${tot>0?'€ '+tot.toLocaleString('it-IT'):'—'}</div></div>
+    <div class="sal-sbox inc"><div class="sl">Incassato</div><div class="sv">${inc>0?'€ '+inc.toLocaleString('it-IT'):'—'}</div></div>
+    <div class="sal-sbox att"><div class="sl">Da incassare</div><div class="sv">${att>0?'€ '+att.toLocaleString('it-IT'):'—'}</div></div>`;
+  document.getElementById('sal-tbody').innerHTML = sal.map((r,i)=>`
+    <tr>
+      <td><input type="text" value="${esc(r.label||'')}" placeholder="es. Acconto, SAL 1…" ${locked?'disabled':''} onchange="salField(${i},'label',this.value)"></td>
+      <td><input type="number" value="${r.importo||''}" placeholder="0" ${locked?'disabled':''} onchange="salField(${i},'importo',this.value)" style="width:100px"></td>
+      <td><input type="date" value="${r.dataPrev||''}" ${locked?'disabled':''} onchange="salField(${i},'dataPrev',this.value)"></td>
+      <td><input type="date" value="${r.dataInc||''}" ${locked?'disabled':''} onchange="salField(${i},'dataInc',this.value)"></td>
+      <td style="text-align:center"><input type="checkbox" class="sal-check" ${r.incassato?'checked':''} ${locked?'disabled':''} onchange="salField(${i},'incassato',this.checked)"></td>
+      <td><button class="sal-del" ${locked?'disabled':''} onclick="delSalRow(${i})">✕</button></td>
+    </tr>`).join('');
+  document.getElementById('btn-add-sal').style.display = locked ? 'none' : 'inline-block';
+}
+
+function salField(i, key, val) {
+  if (!curId) return;
+  const u = D[proj].units[curId];
+  if (!u.sal) u.sal = [];
+  if (!u.sal[i]) u.sal[i] = {};
+  u.sal[i][key] = key==='incassato' ? !!val : (key==='importo' ? parseFloat(val)||0 : val);
+  const sal = u.sal;
+  const tot = sal.reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+  const inc = sal.filter(r=>r.incassato).reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+  const att = tot - inc;
+  document.getElementById('sal-summary').innerHTML = `
+    <div class="sal-sbox"><div class="sl">Totale SAL</div><div class="sv">${tot>0?'€ '+tot.toLocaleString('it-IT'):'—'}</div></div>
+    <div class="sal-sbox inc"><div class="sl">Incassato</div><div class="sv">${inc>0?'€ '+inc.toLocaleString('it-IT'):'—'}</div></div>
+    <div class="sal-sbox att"><div class="sl">Da incassare</div><div class="sv">${att>0?'€ '+att.toLocaleString('it-IT'):'—'}</div></div>`;
+  store();
+}
+
+function addSalRow() {
+  if (!curId) return;
+  const u = D[proj].units[curId];
+  if (!u.sal) u.sal = [];
+  const labels = ['Acconto','SAL 1','SAL 2','SAL 3','Saldo'];
+  u.sal.push({ label: labels[u.sal.length] || 'Voce '+(u.sal.length+1), importo:0, dataPrev:'', dataInc:'', incassato:false });
+  store(); renderSalTab();
+}
+
+function delSalRow(i) {
+  if (!curId) return;
+  const u = D[proj].units[curId];
+  if (!u.sal) return;
+  u.sal.splice(i,1);
+  store(); renderSalTab();
+}
+
+function cm() {
+  document.getElementById('ov').classList.remove('open');
+  curId = null;
+  // Se aperto dal tab parcheggio, torna al parcheggio e aggiorna la vista
+  if (prevParkProj) {
+    proj = prevParkProj;
+    prevParkProj = null;
+    renderParkingKPI();
+    renderParking();
+  }
+}
+
+document.getElementById('ov').addEventListener('click', e => {
+  if (e.target === document.getElementById('ov')) cm();
+});
+
+// ═══════ SAVE ═══════
+function save() {
+  if (!curId) return;
+  const u = D[proj].units[curId];
+  const before = {
+    st:u.st, owner:u.owner||'', price:u.price||'', phone:u.phone||'',
+    email:u.email||'', date:u.date||'', notaio:u.notaio||'', notes:u.notes||'',
+    accordo:u.accordo||'', drive:u.drive||'', codice:u.codice||'', dur:u.dur||''
+  };
+  u.st = document.getElementById('fst').value;
+  u.owner = document.getElementById('fow').value.trim();
+  u.nome = document.getElementById('fnome').value.trim();
+  u.codice = document.getElementById('fcod').value.trim();
+  u.phone = document.getElementById('fph').value.trim();
+  u.email = document.getElementById('fem').value.trim();
+  u.price = parsePriceInput(document.getElementById('fpr').value);
+  u.date = document.getElementById('fda').value;
+  u.dur = document.getElementById('fdur').value.trim();
+  u.accordo = document.getElementById('fac').value;
+  u.notaio = document.getElementById('fno').value.trim();
+  u.drive = document.getElementById('fdr').value.trim();
+  u.notes = document.getElementById('fnt').value.trim();
+  u.box1 = document.getElementById('fbx1').value.trim();
+  u.box2 = document.getElementById('fbx2').value.trim();
+
+  const after = {
+    st:u.st, owner:u.owner, nome:u.nome, price:u.price, phone:u.phone,
+    email:u.email, date:u.date, notaio:u.notaio, notes:u.notes,
+    accordo:u.accordo, drive:u.drive, codice:u.codice, dur:u.dur,
+    box1:u.box1, box2:u.box2
+  };
+  const changes = [];
+  Object.keys(after).forEach(f => {
+    if ((before[f]||'') !== (after[f]||''))
+      changes.push({ field:f, from:before[f]||'', to:after[f]||'' });
+  });
+  if (changes.length) {
+    if (!Array.isArray(u.history)) u.history = [];
+    u.history.push({ ts:tsNow(), changes });
+  }
+  store();
+  renderHistory(u);
+  setFormLocked(true);
+  // Se aperto dal tab parcheggio, aggiorna il parcheggio; altrimenti aggiorna il piano uffici
+  if (prevParkProj) {
+    // il parcheggio si aggiornerà al close del modal
+  } else {
+    renderKPI(); renderPlan();
+  }
+  const ms = document.getElementById('msaved');
+  ms.style.display = 'inline';
+  setTimeout(() => ms.style.display='none', 2000);
+}
+
+// ═══════ HISTORY ═══════
+function renderHistory(u) {
+  const hist = u.history || [];
+  const el = document.getElementById('hist-list');
+  document.getElementById('hist-count').textContent = hist.length ? `${hist.length} modifica${hist.length>1?'e':''}` : '';
+  if (!hist.length) { el.innerHTML = '<div class="history-empty">Nessuna modifica registrata.</div>'; return; }
+  el.innerHTML = [...hist].reverse().map(entry => {
+    const changes = entry.changes.map(c => {
+      const fromTxt = c.from ? `<span class="from">${esc(c.from)}</span>` : `<span class="empty">vuoto</span>`;
+      const toTxt = c.to ? `<span class="to">${esc(c.to)}</span>` : `<span class="empty">vuoto</span>`;
+      return `<div class="hist-change"><strong>${FLBL[c.field]||c.field}:</strong> ${fromTxt} → ${toTxt}</div>`;
+    }).join('');
+    return `<div class="hist-entry"><div class="hist-ts">🕐 ${entry.ts}</div>${changes}</div>`;
+  }).join('');
+}
+
+function clearHistory() {
+  if (!curId) return;
+  if (!confirm('Cancellare tutto lo storico di questa unità?')) return;
+  D[proj].units[curId].history = [];
+  store(); renderHistory(D[proj].units[curId]);
+}
+
+document.addEventListener('keydown', e => { if (e.key==='Escape') cm(); });
+
+// ═══════ DASHBOARD ═══════
+function floorStats(key) {
+  const p = D[key];
+  const units = Object.values(p.units);
+  const a = units.filter(u=>u.st==='venduto');
+  const r = units.filter(u=>u.st==='riservato');
+  const d = units.filter(u=>u.st==='disponibile');
+  const eurF = u => parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
+  const ricavi = a.reduce((s,u)=>s+eurF(u),0);
+  const totMq = units.reduce((s,u)=>s+parseSL(u.sl),0);
+  const assegMq = a.reduce((s,u)=>s+parseSL(u.sl),0);
+  const dispMq = d.reduce((s,u)=>s+parseSL(u.sl),0);
+  const acq = [...a,...r].filter(u=>u.accordo==='Vendita').length;
+  const loc = [...a,...r].filter(u=>u.accordo==='Locazione').length;
+  const tra = [...a,...r].filter(u=>u.accordo==='In trattativa').length;
+  return {
+    key, name:p.name, tot:units.length,
+    a:a.length, r:r.length, d:d.length,
+    ricavi, totMq, assegMq, dispMq, acq, loc, tra
+  };
+}
+
+function renderDashboard() {
+  const keys = ['pt','p1','p2'];
+  const stats = keys.map(floorStats);
+  const G = stats.reduce((acc,s) => ({
+    tot:acc.tot+s.tot, a:acc.a+s.a, r:acc.r+s.r, d:acc.d+s.d,
+    ricavi:acc.ricavi+s.ricavi, totMq:acc.totMq+s.totMq,
+    assegMq:acc.assegMq+s.assegMq, dispMq:acc.dispMq+s.dispMq,
+    acq:acc.acq+s.acq, loc:acc.loc+s.loc, tra:acc.tra+s.tra
+  }), {tot:0,a:0,r:0,d:0,ricavi:0,totMq:0,assegMq:0,dispMq:0,acq:0,loc:0,tra:0});
+  const pct = (n,t) => t ? Math.round(n/t*100) : 0;
+
+  const cards = stats.map(s => {
+    const pa=pct(s.a,s.tot), pr=pct(s.r,s.tot), pd=pct(s.d,s.tot);
+    const tags = [
+      s.acq?`<span class="dtag acq">Vendita: ${s.acq}</span>`:'',
+      s.loc?`<span class="dtag loc">Locazione: ${s.loc}</span>`:'',
+      s.tra?`<span class="dtag tra">Trattativa: ${s.tra}</span>`:'',
+    ].join('');
+    return `
+      <div class="dcard">
+        <div class="dcard-head"><h3>${s.name}</h3><p>Di Tower – Teverola</p></div>
+        <div class="dcard-body">
+          <div class="drow"><span class="drow-lbl">📦 Totale unità</span><span class="drow-val">${s.tot}</span></div>
+          <div class="drow"><span class="drow-lbl">📐 Mq totali piano</span><span class="drow-val">${s.totMq>0?fmtN(Math.round(s.totMq))+' mq':'—'}</span></div>
+          <hr class="dsep">
+          <div class="drow"><span class="drow-lbl"><span class="dot" style="background:#b8860b"></span>Assegnate</span>
+            <span class="drow-val gold">${s.a} <span style="font-size:11px;font-weight:400;color:#999">(${pa}%)</span></span></div>
+          <div class="dbar-wrap"><div class="dbar-fill" style="width:${pa}%;background:#b8860b"></div></div>
+          <div class="drow"><span class="drow-lbl"><span class="dot" style="background:var(--orange)"></span>Riservate</span>
+            <span class="drow-val orange">${s.r} <span style="font-size:11px;font-weight:400;color:#999">(${pr}%)</span></span></div>
+          <div class="dbar-wrap"><div class="dbar-fill" style="width:${pr}%;background:var(--orange)"></div></div>
+          <div class="drow"><span class="drow-lbl"><span class="dot" style="background:var(--green)"></span>Disponibili</span>
+            <span class="drow-val green">${s.d} <span style="font-size:11px;font-weight:400;color:#999">(${pd}%)</span></span></div>
+          <div class="dbar-wrap"><div class="dbar-fill" style="width:${pd}%;background:var(--green)"></div></div>
+          <hr class="dsep">
+          <div class="drow"><span class="drow-lbl">📐 Mq assegnati</span><span class="drow-val gold">${s.assegMq>0?fmtN(Math.round(s.assegMq))+' mq':'—'}</span></div>
+          <div class="drow"><span class="drow-lbl">📐 Mq disponibili</span><span class="drow-val green">${s.dispMq>0?fmtN(Math.round(s.dispMq))+' mq':'—'}</span></div>
+          <div class="drow"><span class="drow-lbl">💶 Ricavi contrattualizzati</span><span class="drow-val gold">${s.ricavi>0?'€ '+fmtN(s.ricavi):'—'}</span></div>
+          ${tags?`<hr class="dsep"><div style="margin-top:2px">${tags}</div>`:''}
+        </div>
+      </div>`;
+  }).join('');
+
+  // SAL data
+  const allFlat = keys.flatMap(key =>
+    Object.entries(D[key].units)
+      .filter(([,u]) => u.sal && u.sal.length > 0)
+      .map(([uid,u]) => ({uid, u, piano:D[key].name}))
+  );
+
+  let totPian=0, totInc=0, totConData=0, totSenzaData=0;
+  const prossimi = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+  allFlat.forEach(({u, piano}) => {
+    (u.sal||[]).forEach(r => {
+      const imp = parseFloat(r.importo)||0;
+      totPian += imp;
+      if (r.incassato) { totInc += imp; }
+      else if (r.dataPrev) {
+        totConData += imp;
+        const d = new Date(r.dataPrev);
+        prossimi.push({ data:d, dataTxt:r.dataPrev.split('-').reverse().join('/'), label:r.label||'', importo:imp, owner:u.owner||uid, piano, scaduto:d<today });
+      } else { totSenzaData += imp; }
+    });
+  });
+  prossimi.sort((a,b)=>a.data-b.data);
+
+  const previsioneHtml = allFlat.length ? `
+    <div>
+      <div class="dash-section-title">📅 Previsione Incassi SAL</div>
+      <div class="cf-wrap" style="margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:20px;">
+          <div style="background:var(--bg);border-radius:8px;padding:12px 16px;">
+            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Totale SAL Pianificato</div>
+            <div style="font-size:18px;font-weight:800;color:#1a2e4a;">€ ${totPian.toLocaleString('it-IT')}</div>
+          </div>
+          <div style="background:#e8f5e9;border-radius:8px;padding:12px 16px;">
+            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Già Incassato</div>
+            <div style="font-size:18px;font-weight:800;color:#2e7d32;">€ ${totInc.toLocaleString('it-IT')}</div>
+          </div>
+          <div style="background:#fff3e0;border-radius:8px;padding:12px 16px;">
+            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Incassare (con data)</div>
+            <div style="font-size:18px;font-weight:800;color:#e65100;">€ ${totConData.toLocaleString('it-IT')}</div>
+            <div style="font-size:10px;color:#999;">${prossimi.length} rata/e programmate</div>
+          </div>
+          <div style="background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px 16px;">
+            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Pianificare</div>
+            <div style="font-size:18px;font-weight:800;color:#888;">€ ${totSenzaData.toLocaleString('it-IT')}</div>
+          </div>
+        </div>
+        ${prossimi.length ? prossimi.slice(0,15).map(r=>{
+          const cls = r.scaduto ? 'color:#c62828;font-weight:700' : 'color:#333';
+          const badge = r.scaduto ? '<span style="background:#ffebee;color:#c62828;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;">SCADUTO</span>' : '';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8dc;gap:8px;flex-wrap:wrap;">
+            <div style="min-width:90px;font-size:12px;font-weight:700;${cls}">${r.dataTxt}${badge}</div>
+            <div style="flex:1;min-width:140px;">
+              <div style="font-size:12px;font-weight:700;color:#1a2e4a;">${esc(r.owner)}</div>
+              <div style="font-size:10px;color:#999;">${r.piano} · ${esc(r.label)}</div>
+            </div>
+            <div style="font-size:13px;font-weight:800;color:#2e7d32;">€ ${r.importo.toLocaleString('it-IT')}</div>
+          </div>`;
+        }).join('') : '<p style="color:#999;font-size:13px;padding:8px 0">Nessuna rata futura programmata.</p>'}
+      </div>
+    </div>` : '';
+
+  // Global card
+  const paG=pct(G.a,G.tot), prG=pct(G.r,G.tot), pdG=pct(G.d,G.tot);
+  const globalCard = `
+    <div class="dcard global" style="grid-column:1/-1">
+      <div class="dcard-head"><h3>🏗 Totale Di Tower Teverola</h3><p>Riepilogo complessivo — tutti i piani</p></div>
+      <div class="dcard-body">
+        <div class="dglobal-nums">
+          <div class="dgn"><div class="dgn-v">${G.tot}</div><div class="dgn-l">Tot. Unità</div></div>
+          <div class="dgn a"><div class="dgn-v">${G.a}</div><div class="dgn-l">Assegnate (${paG}%)</div></div>
+          <div class="dgn r"><div class="dgn-v">${G.r}</div><div class="dgn-l">Riservate (${prG}%)</div></div>
+          <div class="dgn d"><div class="dgn-v">${G.d}</div><div class="dgn-l">Disponibili (${pdG}%)</div></div>
+          <div class="dgn"><div class="dgn-v">${G.totMq>0?fmtN(Math.round(G.totMq)):'-'}</div><div class="dgn-l">Mq Totali</div></div>
+          <div class="dgn a"><div class="dgn-v">${G.assegMq>0?fmtN(Math.round(G.assegMq)):'-'}</div><div class="dgn-l">Mq Assegnati</div></div>
+          <div class="dgn d"><div class="dgn-v">${G.dispMq>0?fmtN(Math.round(G.dispMq)):'-'}</div><div class="dgn-l">Mq Disponibili</div></div>
+        </div>
+        <hr class="dsep">
+        <div class="drow" style="margin-top:6px">
+          <span class="drow-lbl" style="font-size:13px;font-weight:700;">💶 Ricavi Contrattualizzati Totali</span>
+          <span class="drow-val gold" style="font-size:18px;">${G.ricavi>0?'€ '+fmtN(G.ricavi):'—'}</span>
+        </div>
+        <hr class="dsep">
+        <div style="margin-top:4px">
+          <span class="drow-lbl" style="font-size:12px;font-weight:700;margin-bottom:6px;display:block;">Tipo accordo</span>
+          ${G.acq?`<span class="dtag acq">Vendita: ${G.acq}</span>`:''}
+          ${G.loc?`<span class="dtag loc">Locazione: ${G.loc}</span>`:''}
+          ${G.tra?`<span class="dtag tra">Trattativa: ${G.tra}</span>`:''}
+        </div>
+      </div>
+    </div>`;
+
+  // Tabella prezzi per piano
+  const tables = keys.map(key => {
+    const p = D[key];
+    let totMqTab=0, totConc=0;
+    const rows = Object.entries(p.units).map(([uid,u]) => {
+      const sl = parseSL(u.sl);
+      const conc = parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
+      totMqTab += sl; if(conc>0) totConc+=conc;
+      return `<tr>
+        <td>${u.lbl}</td>
+        <td>${u.tipo}</td>
+        <td style="text-align:right">${sl>0?sl.toLocaleString('it-IT',{minimumFractionDigits:2}):'—'}</td>
+        <td style="text-align:right">${conc>0?'€ '+fmtN(conc):'<span style="color:#bbb;font-style:italic">—</span>'}</td>
+        <td>${u.accordo?`<span class="dtag ${u.accordo==='Locazione'?'loc':u.accordo==='Vendita'?'acq':'tra'}">${u.accordo}</span>`:'—'}</td>
+        <td><span class="badge-sm ${u.st}">${STLBL[u.st]||u.st}</span>${u.owner?`<br><span style="font-size:10px;color:#666">${esc(u.owner)}</span>`:''}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="ptable-wrap">
+        <div class="ptable-head">
+          <div><h3>${p.name}</h3><p>${Object.keys(p.units).length} unità · ${totMqTab>0?fmtN(Math.round(totMqTab))+' mq totali':'—'}</p></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="ptable">
+            <thead><tr>
+              <th>Unità</th><th>Tipologia</th>
+              <th style="text-align:right">S.L. (mq)</th>
+              <th style="text-align:right">Canone/Prezzo</th>
+              <th>Accordo</th><th>Stato / Azienda</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr>
+              <td colspan="2">TOTALE</td>
+              <td style="text-align:right">${totMqTab>0?fmtN(Math.round(totMqTab))+' mq':'—'}</td>
+              <td style="text-align:right">${totConc>0?'€ '+fmtN(totConc):'—'}</td>
+              <td colspan="2"></td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="dash">
+      <div>
+        <div class="dash-section-title">Analisi per Piano</div>
+        <div class="dash-grid">${cards}</div>
+      </div>
+      <div>
+        <div class="dash-section-title">Riepilogo Generale</div>
+        <div class="dash-grid">${globalCard}</div>
+      </div>
+      ${previsioneHtml}
+      <div>
+        <div class="dash-section-title">Dettaglio Unità per Piano</div>
+        <div style="display:flex;flex-direction:column;gap:20px;">${tables}</div>
+      </div>
+    </div>`;
+}
+
+// ═══════ INCASSI SAL ═══════
+function renderIncassi() {
+  const keys = ['pt','p1','p2'];
+  const pianoNames = { pt:'Piano Terra', p1:'Piano Primo', p2:'Piano Secondo' };
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let totGlobale=0, incGlobale=0, tableRows='';
+  for (const pk of keys) {
+    const units = D[pk].units;
+    const lista = Object.entries(units).filter(([,u])=>u.sal&&u.sal.length>0);
+    if (!lista.length) continue;
+    tableRows += `<tr style="background:#1a2e4a;color:#fff;">
+      <td colspan="7" style="padding:10px 14px;font-weight:800;font-size:13px;">${pianoNames[pk]}</td></tr>`;
+    for (const [uid,u] of lista) {
+      const sal = u.sal||[];
+      const tot = sal.reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+      const inc = sal.filter(r=>r.incassato).reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+      const att = tot - inc;
+      totGlobale += tot; incGlobale += inc;
+      const pct = tot>0 ? Math.round(inc/tot*100) : 0;
+      const next = sal.find(r=>!r.incassato&&r.dataPrev);
+      const nextScaduto = next && new Date(next.dataPrev) < today;
+      tableRows += `<tr style="border-bottom:1px solid #f0e8dc;">
+        <td style="padding:9px 14px;font-size:12px;">${u.lbl}</td>
+        <td style="padding:9px 14px;font-size:12px;font-weight:700;">${esc(u.owner||'—')}</td>
+        <td style="padding:9px 14px;font-size:11px;color:#888;">${u.tipo}</td>
+        <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;">${tot>0?'€ '+fmtN(tot):'—'}</td>
+        <td style="padding:9px 14px;font-size:12px;text-align:right;color:#2e7d32;font-weight:700;">${inc>0?'€ '+fmtN(inc):'—'}</td>
+        <td style="padding:9px 14px;font-size:12px;text-align:right;color:${att>0?'#c62828':'#2e7d32'};font-weight:700;">${att>0?'€ '+fmtN(att):'✓ Saldato'}</td>
+        <td style="padding:9px 14px;font-size:11px;color:${nextScaduto?'#c62828':'#888'};">
+          ${next?`<strong>${next.dataPrev.split('-').reverse().join('/')}</strong>${nextScaduto?' ⚠️':''}<br>€ ${(parseFloat(next.importo)||0).toLocaleString('it-IT')}`:'—'}
+        </td>
+      </tr>`;
+    }
+  }
+
+  const attGlobale = totGlobale - incGlobale;
+  document.getElementById('content').innerHTML = `
+    <div style="padding:24px;max-width:1000px;margin:0 auto;">
+      <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">💶 Situazione Incassi SAL</h2>
+      <p style="font-size:13px;color:#666;margin-bottom:20px;">Riepilogo dei piani di pagamento inseriti nelle schede unità.</p>
+      ${totGlobale>0?`
+      <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:150px;background:#fff;border-radius:10px;padding:16px 20px;border:1px solid #e0d8cc;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Totale Pianificato</div>
+          <div style="font-size:20px;font-weight:800;color:#1a2e4a;">€ ${fmtN(totGlobale)}</div>
+        </div>
+        <div style="flex:1;min-width:150px;background:#e8f5e9;border-radius:10px;padding:16px 20px;border:1px solid #c8e6c9;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Incassato</div>
+          <div style="font-size:20px;font-weight:800;color:#2e7d32;">€ ${fmtN(incGlobale)}</div>
+        </div>
+        <div style="flex:1;min-width:150px;background:#ffebee;border-radius:10px;padding:16px 20px;border:1px solid #ffcdd2;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Incassare</div>
+          <div style="font-size:20px;font-weight:800;color:#c62828;">€ ${fmtN(attGlobale)}</div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e0d8cc;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:#f5f0e8;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;">
+            <th style="padding:10px 14px;text-align:left;">Unità</th>
+            <th style="padding:10px 14px;text-align:left;">Azienda</th>
+            <th style="padding:10px 14px;text-align:left;">Tipo</th>
+            <th style="padding:10px 14px;text-align:right;">Totale SAL</th>
+            <th style="padding:10px 14px;text-align:right;">Incassato</th>
+            <th style="padding:10px 14px;text-align:right;">Da Incassare</th>
+            <th style="padding:10px 14px;text-align:left;">Prossima Rata</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>` : `
+      <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:24px;color:#795548;font-size:13px;">
+        ℹ️ Nessun SAL inserito. Apri la scheda di un'unità → tab SAL / Pagamenti per aggiungere un piano di pagamento.
+      </div>`}
+    </div>`;
+}
+
+// ═══════ INIT ═══════
+load();
+sw('pt');
+</script>
+</body>
+</html>
