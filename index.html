@@ -243,14 +243,100 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 .cf-pill.inc{background:#e8f5e9;color:#2e7d32;}
 .cf-pill.att{background:#fff8e1;color:#b8860b;}
 .cf-pill.no{background:#f5f5f5;color:#999;}
+
+/* ── LOGIN SCREEN ── */
+.login-ov{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy) 0%,#0f1e33 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;}
+.login-box{background:#fff;border-radius:20px;padding:44px 40px;width:100%;max-width:420px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.login-logo{font-size:26px;font-weight:800;color:var(--navy);letter-spacing:1px;margin-bottom:4px;}
+.login-logo span{color:var(--gold);}
+.login-tagline{font-size:12px;color:#aaa;margin-bottom:32px;font-weight:500;}
+.login-fg{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.login-fg label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#777;}
+.login-fg input{border:1.5px solid #e0d8cc;border-radius:8px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;transition:border .2s;background:#faf8f5;}
+.login-fg input:focus{border-color:var(--navy);background:#fff;}
+.login-err{color:var(--red);font-size:12px;margin:4px 0 8px;display:none;font-weight:600;}
+.login-btn{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px;transition:background .2s;}
+.login-btn:hover{background:#243d5c;}
+.login-btn:disabled{opacity:.5;cursor:default;}
+.login-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:#ccc;font-size:11px;}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:#e8e0d4;}
+.login-guest-btn{width:100%;padding:11px;background:transparent;color:#888;border:1.5px solid #ddd;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;}
+.login-guest-btn:hover{border-color:#aaa;color:#555;background:#faf8f5;}
+.login-footer{font-size:10px;color:#ccc;text-align:center;margin-top:24px;}
+
+/* ── USER BAR (header) ── */
+.user-bar{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:20px;padding:5px 12px 5px 6px;}
+.user-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0;}
+.user-name{font-size:12px;font-weight:600;color:rgba(255,255,255,.9);}
+.user-role-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;padding:2px 6px;border-radius:8px;}
+.user-role-badge.admin{background:var(--gold);color:#1a1a00;}
+.user-role-badge.editor{background:#3b82f6;color:#fff;}
+.user-role-badge.guest{background:rgba(255,255,255,.15);color:rgba(255,255,255,.6);}
+.logout-btn{background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);padding:5px 10px;border-radius:8px;font-size:11px;cursor:pointer;font-family:inherit;transition:all .2s;}
+.logout-btn:hover{background:rgba(255,255,255,.2);color:#fff;}
+
+/* ── PRESENZA LIVE ── */
+.presence-zone{display:flex;align-items:center;gap:6px;padding:0 4px;}
+.presence-label{font-size:9px;color:rgba(255,255,255,.4);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-right:2px;}
+.p-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.25);position:relative;cursor:default;flex-shrink:0;transition:transform .2s;}
+.p-avatar:hover{transform:scale(1.15);}
+.p-avatar .p-dot{position:absolute;bottom:-1px;right:-1px;width:8px;height:8px;background:#22c55e;border-radius:50%;border:1.5px solid var(--navy);}
+.p-avatar .p-tip{position:absolute;top:34px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;font-size:10px;font-weight:600;padding:5px 9px;border-radius:7px;white-space:nowrap;pointer-events:none;display:none;z-index:999;line-height:1.4;}
+.p-avatar:hover .p-tip{display:block;}
+
+/* ── GUEST MODE ── */
+.guest-banner{background:#fff3cd;border-bottom:2px solid #ffc107;padding:8px 24px;font-size:12px;font-weight:600;color:#856404;display:none;align-items:center;gap:8px;}
 </style>
 </head>
 <body>
+
+<!-- ── LOGIN OVERLAY ── -->
+<div class="login-ov" id="login-ov">
+  <div class="login-box">
+    <div class="login-logo">DI TOWER <span>Teverola</span></div>
+    <div class="login-tagline">Gestionale Unità Commerciali — Accesso riservato</div>
+    <div class="login-fg">
+      <label>Email</label>
+      <input id="l-email" type="email" placeholder="email@esempio.it" autocomplete="email">
+    </div>
+    <div class="login-fg">
+      <label>Password</label>
+      <input id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="login-err" id="login-err">Email o password errati.</div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Accedi</button>
+    <div class="login-divider">oppure</div>
+    <button class="login-guest-btn" onclick="enterGuestMode()">👁 Visualizza come Ospite</button>
+    <div class="login-footer">DI TOWER © Aedifica Build · Accesso protetto</div>
+  </div>
+</div>
+
+<!-- ── GUEST BANNER ── -->
+<div class="guest-banner" id="guest-banner">
+  👁 Modalità Visualizzazione Ospite — sola lettura. <a href="#" onclick="showLogin()" style="color:#856404;font-weight:800;text-decoration:underline;">Accedi</a> per modificare.
+</div>
 
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
   <div class="saved-lbl" id="saved"></div>
+  <!-- Presenza live (solo per utenti loggati) -->
+  <div class="presence-zone" id="presence-zone" style="display:none;">
+    <div class="presence-label">Online</div>
+    <div id="presence-avatars" style="display:flex;gap:4px;"></div>
+  </div>
+  <!-- User chip -->
+  <div class="user-bar" id="user-bar" style="display:none;">
+    <div class="user-chip" id="user-chip">
+      <div class="user-avatar" id="user-avatar-hdr"></div>
+      <div>
+        <div class="user-name" id="user-name-hdr"></div>
+      </div>
+      <span class="user-role-badge" id="user-role-hdr"></span>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Esci</button>
+  </div>
 </div>
 
 <div class="tabs">
@@ -550,6 +636,9 @@ function store() {
     });
 }
 
+// ═══════ COSTANTI ═══════
+const PRICE_PER_MQ = 2400;
+
 // ═══════ HELPERS ═══════
 function parseSL(sl) {
   if (!sl || sl === '—') return 0;
@@ -580,33 +669,54 @@ function renderKPI() {
   const a = units.filter(u=>u.st==='venduto').length;
   const r = units.filter(u=>u.st==='riservato').length;
   const d = units.filter(u=>u.st==='disponibile').length;
-  const totMq = units.reduce((s,u)=>s+parseSL(u.sl),0);
-  const assegMq = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+parseSL(u.sl),0);
   const eurF = u => parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
-  const ricavi = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+eurF(u),0);
+
+  // mq
+  const totMq   = units.reduce((s,u)=>s+parseSL(u.sl), 0);
+  const assegMq = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+parseSL(u.sl), 0);
+
+  // ricavi
+  const previsti       = Math.round(totMq * PRICE_PER_MQ);
+  const contrattualiz  = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+eurF(u), 0);
+  const daContrattual  = previsti - contrattualiz;
+
   const pa = tot?(a/tot*100).toFixed(0):0;
   const pr = tot?(r/tot*100).toFixed(0):0;
   const pd = tot?(d/tot*100).toFixed(0):0;
+
+  // % contrattualizzato sul previsto
+  const pctContr = previsti>0 ? Math.round(contrattualiz/previsti*100) : 0;
+  const pctDaContr = 100 - pctContr;
 
   document.getElementById('kpi').innerHTML = `
     <div class="kpi t">
       <div class="kl">Totale Unità — ${D[proj].name}</div>
       <div class="kv">${tot}</div>
-      <div class="ks">${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq totali':'—'}</div>
-      <div class="pbar"><div class="pb-a" style="width:${pa}%"></div><div class="pb-r" style="width:${pr}%"></div><div class="pb-d" style="width:${pd}%"></div></div>
+      <div class="ks">${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq totali · €'+PRICE_PER_MQ.toLocaleString('it-IT')+'/mq':'—'}</div>
+      <div class="pbar">
+        <div class="pb-a" style="width:${pa}%"></div>
+        <div class="pb-r" style="width:${pr}%"></div>
+        <div class="pb-d" style="width:${pd}%"></div>
+      </div>
     </div>
-    <div class="kpi a"><div class="kl">Assegnate</div><div class="kv">${a}</div><div class="ks">${pa}% del totale</div></div>
+    <div class="kpi a"><div class="kl">Vendute</div><div class="kv">${a}</div><div class="ks">${pa}% del totale</div></div>
     <div class="kpi r"><div class="kl">Riservate</div><div class="kv">${r}</div><div class="ks">${pr}% del totale</div></div>
     <div class="kpi d"><div class="kl">Disponibili</div><div class="kv">${d}</div><div class="ks">${pd}% del totale</div></div>
-    <div class="kpi" style="background:#fff8e6;border-color:#f0d060">
-      <div class="kl">Mq Assegnati</div>
-      <div class="kv" style="color:#b8860b;font-size:17px">${assegMq>0?assegMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq':'—'}</div>
-      <div class="ks">su ${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq tot.':'—'}</div>
+    <div class="kpi" style="background:#f0f4ff;border-color:#c8d8f8">
+      <div class="kl">💶 Ricavi Totali Previsti</div>
+      <div class="kv" style="color:#3a5fa0;font-size:17px">€ ${previsti.toLocaleString('it-IT')}</div>
+      <div class="ks">${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq × €'+PRICE_PER_MQ.toLocaleString('it-IT'):''}</div>
     </div>
-    <div class="kpi" style="background:#f0f8f0;border-color:#a8d8a8">
-      <div class="kl">Ricavi Contrattualizzati</div>
-      <div class="kv" style="color:#2e7d32;font-size:17px">${ricavi>0?'€ '+fmtN(ricavi):'—'}</div>
-      <div class="ks">da schede con importo</div>
+    <div class="kpi" style="background:#fffbe6;border-color:#f0d060">
+      <div class="kl">✅ Ricavi Contrattualizzati</div>
+      <div class="kv" style="color:#b8860b;font-size:17px">${contrattualiz>0?'€ '+fmtN(contrattualiz):'—'}</div>
+      <div class="ks">${pctContr}% del previsto · vendite con prezzo</div>
+      <div class="pbar" style="margin-top:6px"><div class="pb-a" style="width:${pctContr}%"></div><div class="pb-d" style="width:${pctDaContr}%"></div></div>
+    </div>
+    <div class="kpi" style="background:#fff0f0;border-color:#f8c8c8">
+      <div class="kl">📋 Ricavi da Contrattualizzare</div>
+      <div class="kv" style="color:#c62828;font-size:17px">€ ${daContrattual.toLocaleString('it-IT')}</div>
+      <div class="ks">${pctDaContr}% del previsto · previsti − contrattualizzati</div>
     </div>`;
 }
 
@@ -658,6 +768,7 @@ function sw(p) {
   else if (isInc) renderIncassi();
   else if (isPark) { renderParkingKPI(); renderParking(); }
   else { renderKPI(); renderPlan(); }
+  trackPresence();
 }
 
 // ═══════ KPI PARCHEGGI ═══════
@@ -845,7 +956,8 @@ function openM(uid) {
   rb();
   renderHistory(u);
   switchMTab('scheda');
-  setFormLocked(false);
+  setFormLocked(isGuest() ? true : false);
+  trackPresence({ unita: uid });
   document.getElementById('msaved').style.display = 'none';
   document.getElementById('ov').classList.add('open');
 }
@@ -970,6 +1082,7 @@ function delSalRow(i) {
 function cm() {
   document.getElementById('ov').classList.remove('open');
   curId = null;
+  trackPresence({ unita: null });
   // Se aperto dal tab parcheggio, torna al parcheggio e aggiorna la vista
   if (prevParkProj) {
     proj = prevParkProj;
@@ -1071,16 +1184,18 @@ function floorStats(key) {
   const d = units.filter(u=>u.st==='disponibile');
   const eurF = u => parseFloat((u.price||'').replace(/\./g,'').replace(',','.')) || 0;
   const ricavi = a.reduce((s,u)=>s+eurF(u),0);
-  const totMq = units.reduce((s,u)=>s+parseSL(u.sl),0);
-  const assegMq = a.reduce((s,u)=>s+parseSL(u.sl),0);
-  const dispMq = d.reduce((s,u)=>s+parseSL(u.sl),0);
+  const totMq    = units.reduce((s,u)=>s+parseSL(u.sl),0);
+  const assegMq  = a.reduce((s,u)=>s+parseSL(u.sl),0);
+  const dispMq   = d.reduce((s,u)=>s+parseSL(u.sl),0);
+  const previsti = Math.round(totMq * PRICE_PER_MQ);
+  const daContr  = previsti - ricavi;
   const acq = [...a,...r].filter(u=>u.accordo==='Vendita').length;
   const loc = [...a,...r].filter(u=>u.accordo==='Locazione').length;
   const tra = [...a,...r].filter(u=>u.accordo==='In trattativa').length;
   return {
     key, name:p.name, tot:units.length,
     a:a.length, r:r.length, d:d.length,
-    ricavi, totMq, assegMq, dispMq, acq, loc, tra
+    ricavi, previsti, daContr, totMq, assegMq, dispMq, acq, loc, tra
   };
 }
 
@@ -1089,10 +1204,10 @@ function renderDashboard() {
   const stats = keys.map(floorStats);
   const G = stats.reduce((acc,s) => ({
     tot:acc.tot+s.tot, a:acc.a+s.a, r:acc.r+s.r, d:acc.d+s.d,
-    ricavi:acc.ricavi+s.ricavi, totMq:acc.totMq+s.totMq,
-    assegMq:acc.assegMq+s.assegMq, dispMq:acc.dispMq+s.dispMq,
+    ricavi:acc.ricavi+s.ricavi, previsti:acc.previsti+s.previsti, daContr:acc.daContr+s.daContr,
+    totMq:acc.totMq+s.totMq, assegMq:acc.assegMq+s.assegMq, dispMq:acc.dispMq+s.dispMq,
     acq:acc.acq+s.acq, loc:acc.loc+s.loc, tra:acc.tra+s.tra
-  }), {tot:0,a:0,r:0,d:0,ricavi:0,totMq:0,assegMq:0,dispMq:0,acq:0,loc:0,tra:0});
+  }), {tot:0,a:0,r:0,d:0,ricavi:0,previsti:0,daContr:0,totMq:0,assegMq:0,dispMq:0,acq:0,loc:0,tra:0});
   const pct = (n,t) => t ? Math.round(n/t*100) : 0;
 
   const cards = stats.map(s => {
@@ -1119,9 +1234,22 @@ function renderDashboard() {
             <span class="drow-val green">${s.d} <span style="font-size:11px;font-weight:400;color:#999">(${pd}%)</span></span></div>
           <div class="dbar-wrap"><div class="dbar-fill" style="width:${pd}%;background:var(--green)"></div></div>
           <hr class="dsep">
+          <div class="drow"><span class="drow-lbl">📐 Mq totali</span><span class="drow-val">${s.totMq>0?fmtN(Math.round(s.totMq))+' mq':'—'}</span></div>
           <div class="drow"><span class="drow-lbl">📐 Mq assegnati</span><span class="drow-val gold">${s.assegMq>0?fmtN(Math.round(s.assegMq))+' mq':'—'}</span></div>
-          <div class="drow"><span class="drow-lbl">📐 Mq disponibili</span><span class="drow-val green">${s.dispMq>0?fmtN(Math.round(s.dispMq))+' mq':'—'}</span></div>
-          <div class="drow"><span class="drow-lbl">💶 Ricavi contrattualizzati</span><span class="drow-val gold">${s.ricavi>0?'€ '+fmtN(s.ricavi):'—'}</span></div>
+          <hr class="dsep">
+          <div class="drow">
+            <span class="drow-lbl" style="font-size:11px;font-weight:700;">💶 Ricavi Totali Previsti</span>
+            <span class="drow-val" style="color:#3a5fa0;font-size:13px;">€ ${fmtN(s.previsti)}</span>
+          </div>
+          <div class="drow" style="margin-top:0"><span class="drow-lbl" style="font-size:10px;color:#aaa">${fmtN(Math.round(s.totMq))} mq × €${PRICE_PER_MQ.toLocaleString('it-IT')}/mq</span></div>
+          <div class="drow">
+            <span class="drow-lbl" style="font-size:11px;font-weight:700;">✅ Ricavi Contrattualizzati</span>
+            <span class="drow-val gold" style="font-size:13px;">${s.ricavi>0?'€ '+fmtN(s.ricavi):'—'}</span>
+          </div>
+          <div class="drow">
+            <span class="drow-lbl" style="font-size:11px;font-weight:700;">📋 Da Contrattualizzare</span>
+            <span class="drow-val" style="color:var(--red);font-size:13px;">€ ${fmtN(s.daContr)}</span>
+          </div>
           ${tags?`<hr class="dsep"><div style="margin-top:2px">${tags}</div>`:''}
         </div>
       </div>`;
@@ -1206,8 +1334,19 @@ function renderDashboard() {
         </div>
         <hr class="dsep">
         <div class="drow" style="margin-top:6px">
-          <span class="drow-lbl" style="font-size:13px;font-weight:700;">💶 Ricavi Contrattualizzati Totali</span>
+          <span class="drow-lbl" style="font-size:13px;font-weight:700;">💶 Ricavi Totali Previsti (tutti i piani)</span>
+          <span class="drow-val" style="font-size:16px;color:#3a5fa0;font-weight:700;">€ ${fmtN(G.previsti)}</span>
+        </div>
+        <div class="drow" style="margin-top:0">
+          <span class="drow-lbl" style="font-size:10px;color:#aaa;">${fmtN(Math.round(G.totMq))} mq × €${PRICE_PER_MQ.toLocaleString('it-IT')}/mq</span>
+        </div>
+        <div class="drow">
+          <span class="drow-lbl" style="font-size:13px;font-weight:700;">✅ Ricavi Contrattualizzati</span>
           <span class="drow-val gold" style="font-size:18px;">${G.ricavi>0?'€ '+fmtN(G.ricavi):'—'}</span>
+        </div>
+        <div class="drow">
+          <span class="drow-lbl" style="font-size:13px;font-weight:700;">📋 Da Contrattualizzare</span>
+          <span class="drow-val" style="font-size:16px;color:var(--red);font-weight:700;">€ ${fmtN(G.daContr)}</span>
         </div>
         <hr class="dsep">
         <div style="margin-top:4px">
@@ -1355,9 +1494,162 @@ function renderIncassi() {
     </div>`;
 }
 
+// ═══════ AUTH & PRESENZA ═══════
+let currentUser = null;
+let presenceChannel = null;
+const ROLE_COLORS = { admin:'#c9a84c', editor:'#3b82f6' };
+
+// Inizializzazione: controlla sessione esistente
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    await afterLogin(session.user);
+  } else {
+    showLogin();
+  }
+  // Ascolta cambio auth (logout da altra tab, ecc.)
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_OUT') { currentUser = null; showLogin(); }
+    if (event === 'SIGNED_IN' && session) await afterLogin(session.user);
+  });
+}
+
+function showLogin() {
+  document.getElementById('login-ov').style.display = 'flex';
+  document.getElementById('user-bar').style.display = 'none';
+  document.getElementById('presence-zone').style.display = 'none';
+  document.getElementById('guest-banner').style.display = 'none';
+}
+
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const pass  = document.getElementById('l-pass').value;
+  const btn   = document.getElementById('login-btn');
+  const err   = document.getElementById('login-err');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Accesso in corso…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Accedi';
+  if (error) { err.style.display = 'block'; return; }
+  await afterLogin(data.user);
+}
+
+// Enter key sul form login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-ov').style.display !== 'none') doLogin();
+});
+
+async function afterLogin(user) {
+  // Carica profilo da tabella profiles
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  currentUser = {
+    id: user.id,
+    email: user.email,
+    nome: profile?.nome || user.email.split('@')[0],
+    role: profile?.role || 'editor',
+    colore: profile?.colore || '#3b82f6',
+  };
+  document.getElementById('login-ov').style.display = 'none';
+  document.getElementById('guest-banner').style.display = 'none';
+  renderUserBar();
+  load();
+  sw('pt');
+  initPresence();
+}
+
+function enterGuestMode() {
+  currentUser = { role: 'guest', nome: 'Ospite', colore: '#888' };
+  document.getElementById('login-ov').style.display = 'none';
+  document.getElementById('guest-banner').style.display = 'flex';
+  document.getElementById('user-bar').style.display = 'none';
+  document.getElementById('presence-zone').style.display = 'none';
+  load();
+  sw('pt');
+}
+
+async function doLogout() {
+  if (presenceChannel) await presenceChannel.untrack();
+  await sb.auth.signOut();
+  currentUser = null;
+  showLogin();
+}
+
+function isGuest() { return !currentUser || currentUser.role === 'guest'; }
+function isAdmin() { return currentUser?.role === 'admin'; }
+
+function renderUserBar() {
+  if (!currentUser || currentUser.role === 'guest') return;
+  const initials = currentUser.nome.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  const av = document.getElementById('user-avatar-hdr');
+  av.textContent = initials;
+  av.style.background = currentUser.colore;
+  document.getElementById('user-name-hdr').textContent = currentUser.nome;
+  const rb = document.getElementById('user-role-hdr');
+  rb.textContent = currentUser.role === 'admin' ? 'Admin' : 'Editor';
+  rb.className = 'user-role-badge ' + currentUser.role;
+  document.getElementById('user-bar').style.display = 'flex';
+}
+
+// ═══════ PRESENZA LIVE ═══════
+function initPresence() {
+  if (isGuest()) return;
+  presenceChannel = sb.channel('ditower-presence', { config: { presence: { key: currentUser.id } } });
+  presenceChannel
+    .on('presence', { event: 'sync' }, () => renderPresenceAvatars(presenceChannel.presenceState()))
+    .on('presence', { event: 'join' }, () => renderPresenceAvatars(presenceChannel.presenceState()))
+    .on('presence', { event: 'leave' }, () => renderPresenceAvatars(presenceChannel.presenceState()))
+    .subscribe(async status => {
+      if (status === 'SUBSCRIBED') await trackPresence();
+    });
+  document.getElementById('presence-zone').style.display = 'flex';
+}
+
+async function trackPresence(extra = {}) {
+  if (!presenceChannel || isGuest()) return;
+  await presenceChannel.track({
+    user_id: currentUser.id,
+    nome: currentUser.nome,
+    colore: currentUser.colore,
+    role: currentUser.role,
+    vista: proj,
+    unita: curId || null,
+    ts: Date.now(),
+    ...extra
+  });
+}
+
+function renderPresenceAvatars(state) {
+  const container = document.getElementById('presence-avatars');
+  const users = Object.values(state).flat();
+  container.innerHTML = users.map(u => {
+    const initials = u.nome.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const vista = u.vista ? ` · ${u.vista.toUpperCase()}` : '';
+    const unita = u.unita ? ` → ${u.unita}` : '';
+    const tip = `${u.nome} (${u.role})${vista}${unita}`;
+    const self = u.user_id === currentUser?.id;
+    return `<div class="p-avatar" style="background:${u.colore};${self?'border-color:var(--gold);':''}" title="">
+      ${initials}<div class="p-dot"></div>
+      <div class="p-tip">${esc(tip)}${self?' (tu)':''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════ GUEST LOCK SU MODAL ═══════
+// Override: ospiti vedono tutto ma non possono modificare
+const _origOpenM = window.openM;
+// Patch setFormLocked per guest
+const _origSetFormLocked = setFormLocked;
+function setFormLocked(locked) {
+  _origSetFormLocked(isGuest() ? true : locked);
+  if (isGuest()) {
+    // Nasconde anche il pulsante "Modifica"
+    const btnEdit = document.getElementById('btn-edit');
+    if (btnEdit) btnEdit.style.display = 'none';
+  }
+}
+
 // ═══════ INIT ═══════
-load();
-sw('pt');
+initAuth();
 </script>
 </body>
 </html>
