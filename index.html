@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DI TOWER Teverola – Gestionale Unità</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root {
   --navy:#1a2e4a; --gold:#c9a84c; --green:#2e7d32; --red:#c62828;
@@ -320,6 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 09:40</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -970,6 +972,8 @@ function rb() {
 }
 
 function setFormLocked(locked) {
+  // Gli ospiti sono sempre in sola lettura, a prescindere dal parametro
+  if (isGuest()) locked = true;
   const fields = ['fow','fcod','fph','fem','fpr','fda','fdur','fac','fno','fdr','fnt','fst'];
   fields.forEach(id => {
     const el = document.getElementById(id);
@@ -979,7 +983,8 @@ function setFormLocked(locked) {
   });
   const drBtn = document.getElementById('fdr-btn');
   if (drBtn) drBtn.style.pointerEvents = locked ? 'none' : '';
-  document.getElementById('btn-edit').style.display = locked ? 'inline-flex' : 'none';
+  // Il pulsante "Modifica" appare solo a editor/admin (mai agli ospiti)
+  document.getElementById('btn-edit').style.display = (locked && !isGuest()) ? 'inline-flex' : 'none';
   document.getElementById('btn-cancel').style.display = !locked ? 'inline-flex' : 'none';
   document.getElementById('btn-save').style.display = !locked ? 'inline-flex' : 'none';
   const addSalBtn = document.getElementById('btn-add-sal');
@@ -1279,6 +1284,39 @@ function renderDashboard() {
   });
   prossimi.sort((a,b)=>a.data-b.data);
 
+  // Previsione mensile cumulata (come Di Park)
+  const prevMap = {};
+  prossimi.forEach(r => { const ym = r.data.toISOString().slice(0,7); prevMap[ym] = (prevMap[ym]||0) + r.importo; });
+  const prevKeys = Object.keys(prevMap).sort();
+  const prevMax  = Math.max(...Object.values(prevMap), 1);
+  let prevCumul  = totInc;
+  const prevBars = prevKeys.map(ym => {
+    const v = prevMap[ym];
+    prevCumul += v;
+    const pct = Math.round(v/prevMax*100);
+    const [y,m] = ym.split('-');
+    const mName = new Date(y, m-1).toLocaleString('it-IT',{month:'short',year:'2-digit'});
+    const isScaduto = new Date(ym+'-01') < today;
+    return `<div class="cf-bar-row">
+      <div class="cf-bar-lbl">${mName}</div>
+      <div class="cf-bar-track"><div class="cf-bar-fill" style="width:${pct}%;background:${isScaduto?'#c62828':'#2e7d32'}">€ ${v.toLocaleString('it-IT')}</div></div>
+      <div class="cf-bar-val" style="color:${isScaduto?'#c62828':'var(--navy)'}">cum. € ${prevCumul.toLocaleString('it-IT')}</div>
+    </div>`;
+  }).join('');
+
+  const prossimiRows = prossimi.slice(0,20).map(r=>{
+    const cls = r.scaduto ? 'color:#c62828;font-weight:700' : 'color:#333';
+    const badge = r.scaduto ? '<span style="background:#ffebee;color:#c62828;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;">SCADUTO</span>' : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8dc;gap:8px;flex-wrap:wrap;">
+      <div style="min-width:90px;font-size:12px;font-weight:700;${cls}">${r.dataTxt}${badge}</div>
+      <div style="flex:1;min-width:140px;">
+        <div style="font-size:12px;font-weight:700;color:#1a2e4a;">${esc(r.owner)}</div>
+        <div style="font-size:10px;color:#999;">${r.piano} · ${esc(r.label)}</div>
+      </div>
+      <div style="font-size:13px;font-weight:800;color:#2e7d32;">€ ${r.importo.toLocaleString('it-IT')}</div>
+    </div>`;
+  }).join('');
+
   const previsioneHtml = allFlat.length ? `
     <div>
       <div class="dash-section-title">📅 Previsione Incassi SAL</div>
@@ -1291,6 +1329,7 @@ function renderDashboard() {
           <div style="background:#e8f5e9;border-radius:8px;padding:12px 16px;">
             <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Già Incassato</div>
             <div style="font-size:18px;font-weight:800;color:#2e7d32;">€ ${totInc.toLocaleString('it-IT')}</div>
+            <div style="font-size:10px;color:#999;">${totPian>0?Math.round(totInc/totPian*100):0}% del totale</div>
           </div>
           <div style="background:#fff3e0;border-radius:8px;padding:12px 16px;">
             <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Incassare (con data)</div>
@@ -1298,22 +1337,22 @@ function renderDashboard() {
             <div style="font-size:10px;color:#999;">${prossimi.length} rata/e programmate</div>
           </div>
           <div style="background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px 16px;">
-            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Pianificare</div>
+            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Pianificare (senza data)</div>
             <div style="font-size:18px;font-weight:800;color:#888;">€ ${totSenzaData.toLocaleString('it-IT')}</div>
           </div>
         </div>
-        ${prossimi.length ? prossimi.slice(0,15).map(r=>{
-          const cls = r.scaduto ? 'color:#c62828;font-weight:700' : 'color:#333';
-          const badge = r.scaduto ? '<span style="background:#ffebee;color:#c62828;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;">SCADUTO</span>' : '';
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8dc;gap:8px;flex-wrap:wrap;">
-            <div style="min-width:90px;font-size:12px;font-weight:700;${cls}">${r.dataTxt}${badge}</div>
-            <div style="flex:1;min-width:140px;">
-              <div style="font-size:12px;font-weight:700;color:#1a2e4a;">${esc(r.owner)}</div>
-              <div style="font-size:10px;color:#999;">${r.piano} · ${esc(r.label)}</div>
-            </div>
-            <div style="font-size:13px;font-weight:800;color:#2e7d32;">€ ${r.importo.toLocaleString('it-IT')}</div>
-          </div>`;
-        }).join('') : '<p style="color:#999;font-size:13px;padding:8px 0">Nessuna rata futura programmata.</p>'}
+        ${prossimi.length ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:10px;">Prossimi Incassi</div>
+            ${prossimiRows}
+            ${prossimi.length>20?`<div style="font-size:11px;color:#999;padding-top:8px;">... e altri ${prossimi.length-20} pagamenti</div>`:''}
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:10px;">Previsione Mensile <span style="color:#c62828;">■</span> scaduto <span style="color:#2e7d32;">■</span> futuro</div>
+            ${prevBars||'<p style="color:#999;font-size:12px;">Nessuna data prevista inserita.</p>'}
+          </div>
+        </div>` : '<p style="color:#999;font-size:13px;padding:8px 0">Nessuna rata futura programmata. Aggiungi date previste nelle schede SAL.</p>'}
       </div>
     </div>` : '';
 
@@ -1459,6 +1498,18 @@ function renderIncassi() {
     <div style="padding:24px;max-width:1000px;margin:0 auto;">
       <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">💶 Situazione Incassi SAL</h2>
       <p style="font-size:13px;color:#666;margin-bottom:20px;">Riepilogo dei piani di pagamento inseriti nelle schede unità.</p>
+
+      <div style="background:#fff;border:1px solid #e0d8cc;border-radius:10px;padding:18px 20px;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:220px;">
+            <div style="font-size:14px;font-weight:800;color:#1a2e4a;margin-bottom:2px;">📥 Incassi da file Excel</div>
+            <div style="font-size:12px;color:#888;">Carica la "Situazione Scadenze": filtro i clienti, le partite DT e sommo il Totale Partita per cliente.</div>
+          </div>
+          <input type="file" id="excel-input" accept=".xlsx,.xls" style="display:none;" onchange="handleExcelFile(this)">
+          <button onclick="document.getElementById('excel-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📂 Carica file Excel</button>
+        </div>
+        <div id="excel-results" style="margin-top:18px;">${renderExcelResults()}</div>
+      </div>
       ${totGlobale>0?`
       <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
         <div style="flex:1;min-width:150px;background:#fff;border-radius:10px;padding:16px 20px;border:1px solid #e0d8cc;">
@@ -1510,7 +1561,11 @@ async function initAuth() {
   // Ascolta cambio auth (logout da altra tab, ecc.)
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_OUT') { currentUser = null; showLogin(); }
-    if (event === 'SIGNED_IN' && session) await afterLogin(session.user);
+    if (event === 'SIGNED_IN' && session) {
+      // Evita il doppio login: se è già lo stesso utente, non re-inizializzare
+      if (currentUser && currentUser.id === session.user.id) return;
+      await afterLogin(session.user);
+    }
   });
 }
 
@@ -1593,6 +1648,8 @@ function renderUserBar() {
 // ═══════ PRESENZA LIVE ═══════
 function initPresence() {
   if (isGuest()) return;
+  // Rimuove un eventuale canale precedente per non accumulare presenze duplicate
+  if (presenceChannel) { try { sb.removeChannel(presenceChannel); } catch(e){} presenceChannel = null; }
   presenceChannel = sb.channel('ditower-presence', { config: { presence: { key: currentUser.id } } });
   presenceChannel
     .on('presence', { event: 'sync' }, () => renderPresenceAvatars(presenceChannel.presenceState()))
@@ -1620,7 +1677,13 @@ async function trackPresence(extra = {}) {
 
 function renderPresenceAvatars(state) {
   const container = document.getElementById('presence-avatars');
-  const users = Object.values(state).flat();
+  // Un solo avatar per utente: raggruppa per id e tiene la presenza più recente
+  const byUser = {};
+  Object.values(state).flat().forEach(u => {
+    const k = u.user_id || u.nome;
+    if (!byUser[k] || (u.ts||0) > (byUser[k].ts||0)) byUser[k] = u;
+  });
+  const users = Object.values(byUser);
   container.innerHTML = users.map(u => {
     const initials = u.nome.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const vista = u.vista ? ` · ${u.vista.toUpperCase()}` : '';
@@ -1634,18 +1697,173 @@ function renderPresenceAvatars(state) {
   }).join('');
 }
 
-// ═══════ GUEST LOCK SU MODAL ═══════
-// Override: ospiti vedono tutto ma non possono modificare
-const _origOpenM = window.openM;
-// Patch setFormLocked per guest
-const _origSetFormLocked = setFormLocked;
-function setFormLocked(locked) {
-  _origSetFormLocked(isGuest() ? true : locked);
-  if (isGuest()) {
-    // Nasconde anche il pulsante "Modifica"
-    const btnEdit = document.getElementById('btn-edit');
-    if (btnEdit) btnEdit.style.display = 'none';
+// ═══════ INCASSI DA FILE EXCEL ═══════
+let excelIncassi = null; // { fileName, rows:[{cliente, concordato, incassato, daIncassare, matched}], unmatched:[] }
+
+// Normalizza un nome per il confronto tollerante (accenti, punteggiatura, forme societarie, spazi)
+function normName(s) {
+  return String(s||'')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/\b(s\.?\s?r\.?\s?l\.?s?|s\.?\s?p\.?\s?a\.?|societa benefit|s\.?n\.?c\.?|s\.?a\.?s\.?)\b/g,'')
+    .replace(/[^a-z0-9]/g,'');
+}
+
+// Due nomi combaciano se uguali o se uno contiene l'altro (con soglia minima anti falsi positivi)
+function nameMatch(a, b) {
+  const x = normName(a), y = normName(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (x.length >= 4 && y.length >= 4 && (x.includes(y) || y.includes(x))) return true;
+  return false;
+}
+
+// Prezzo concordato per cliente: somma dei prezzi delle unità a lui assegnate (schede app)
+function buildClientiConcordato() {
+  const eurF = v => parseFloat(String(v||'').replace(/\./g,'').replace(',','.')) || 0;
+  const map = {}; // key normalizzata -> { nome, concordato, unita:[] }
+  ['pt','p1','p2'].forEach(pk => {
+    Object.entries(D[pk].units).forEach(([uid,u]) => {
+      const owner = (u.owner||'').trim();
+      if (!owner) return;
+      const k = normName(owner);
+      if (!k) return;
+      if (!map[k]) map[k] = { nome: owner, concordato: 0, unita: [] };
+      map[k].concordato += eurF(u.price);
+      map[k].unita.push(uid);
+    });
+  });
+  return map;
+}
+
+function handleExcelFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const box = document.getElementById('excel-results');
+  if (box) box.innerHTML = '<div style="font-size:13px;color:#888;padding:8px 0;">⏳ Lettura del file in corso…</div>';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+      processExcelRows(rows, file.name);
+    } catch (err) {
+      if (box) box.innerHTML = '<div style="font-size:13px;color:#c62828;padding:8px 0;">🔴 Errore nella lettura del file: ' + esc(err.message) + '</div>';
+    }
+  };
+  reader.onerror = () => { if (box) box.innerHTML = '<div style="font-size:13px;color:#c62828;">🔴 Impossibile leggere il file.</div>'; };
+  reader.readAsArrayBuffer(file);
+  input.value = ''; // consente di ricaricare lo stesso file
+}
+
+function processExcelRows(rows, fileName) {
+  // Trova la riga di intestazione (contiene "Nominativo", "Partita", "Totale Partita")
+  let headerIdx = -1, colNom=-1, colTipo=-1, colPartita=-1, colTot=-1;
+  for (let i=0; i<Math.min(rows.length, 30); i++) {
+    const r = rows[i].map(c => String(c||'').trim().toLowerCase());
+    const iNom = r.findIndex(c => c === 'nominativo');
+    const iTot = r.findIndex(c => c === 'totale partita');
+    if (iNom !== -1 && iTot !== -1) {
+      headerIdx = i; colNom = iNom; colTot = iTot;
+      colTipo = r.findIndex(c => c.startsWith('cliente / fornitore') || c === 'tipo');
+      colPartita = r.findIndex(c => c === 'partita');
+      break;
+    }
   }
+  if (headerIdx === -1) {
+    document.getElementById('excel-results').innerHTML =
+      '<div style="font-size:13px;color:#c62828;padding:8px 0;">🔴 Non ho trovato le colonne attese (Nominativo, Partita, Totale Partita). Controlla che il file sia la "Situazione Scadenze".</div>';
+    return;
+  }
+
+  // Aggrega per nominativo: solo Clienti con partita che inizia per DT, somma Totale Partita
+  const perNom = {}; // nominativo originale -> sommaTotalePartita
+  for (let i=headerIdx+1; i<rows.length; i++) {
+    const row = rows[i];
+    const tipo = String(row[colTipo]||'').trim().toLowerCase();
+    const partita = String(row[colPartita]||'').trim();
+    if (tipo !== 'cliente') continue;
+    if (!partita.toUpperCase().startsWith('DT')) continue;
+    const nom = String(row[colNom]||'').trim();
+    if (!nom) continue;
+    const tot = parseFloat(String(row[colTot]).toString().replace(/\./g,'').replace(',','.')) ||
+                parseFloat(row[colTot]) || 0;
+    perNom[nom] = (perNom[nom]||0) + (Number(row[colTot]) || tot || 0);
+  }
+
+  // Abbina i clienti dell'app ai nominativi dell'Excel
+  const clienti = buildClientiConcordato();
+  const usedNom = new Set();
+  const resultRows = [];
+  Object.values(clienti).forEach(cl => {
+    let incassato = 0, matchedNom = [];
+    Object.entries(perNom).forEach(([nom, somma]) => {
+      if (nameMatch(cl.nome, nom)) { incassato += somma; matchedNom.push(nom); usedNom.add(nom); }
+    });
+    resultRows.push({
+      cliente: cl.nome,
+      concordato: cl.concordato,
+      incassato: incassato,
+      daIncassare: cl.concordato - incassato,
+      matched: matchedNom,
+    });
+  });
+  // Nominativi DT nell'Excel non abbinati ad alcun cliente dell'app
+  const unmatched = Object.entries(perNom)
+    .filter(([nom]) => !usedNom.has(nom))
+    .map(([nom, somma]) => ({ nom, somma }));
+
+  resultRows.sort((a,b) => b.incassato - a.incassato);
+  excelIncassi = { fileName, rows: resultRows, unmatched };
+  document.getElementById('excel-results').innerHTML = renderExcelResults();
+}
+
+function renderExcelResults() {
+  if (!excelIncassi) {
+    return '<div style="font-size:12px;color:#aaa;">Nessun file caricato. I risultati appariranno qui.</div>';
+  }
+  const { fileName, rows, unmatched } = excelIncassi;
+  const fmt = n => '€ ' + Math.round(n).toLocaleString('it-IT');
+  let tot=0, inc=0;
+  const body = rows.map(r => {
+    tot += r.concordato; inc += r.incassato;
+    const noMatch = r.matched.length === 0;
+    return `<tr style="border-bottom:1px solid #f0e8dc;">
+      <td style="padding:9px 14px;font-size:12px;font-weight:700;">${esc(r.cliente)}${noMatch?' <span style="font-size:10px;color:#bbb;font-weight:400;">(nessun incasso DT)</span>':''}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;color:#1a2e4a;">${r.concordato>0?fmt(r.concordato):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;color:#2e7d32;">${r.incassato>0?fmt(r.incassato):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;color:${r.daIncassare>0?'#c62828':'#2e7d32'};">${Math.round(r.daIncassare)===0?'✓ Saldato':fmt(r.daIncassare)}</td>
+    </tr>`;
+  }).join('');
+  const daInc = tot - inc;
+
+  const unmatchedHtml = unmatched.length ? `
+    <div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:11px;color:#795548;">
+      ⚠️ Nominativi con partite DT nell'Excel ma senza cliente corrispondente nelle schede:
+      ${unmatched.map(u => `<strong>${esc(u.nom)}</strong> (${fmt(u.somma)})`).join(', ')}
+    </div>` : '';
+
+  return `
+    <div style="font-size:11px;color:#888;margin-bottom:8px;">📄 File: <strong>${esc(fileName)}</strong> · Incassato = somma "Totale Partita" delle partite DT per cliente.</div>
+    <div style="border:1px solid #e0d8cc;border-radius:8px;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f5f0e8;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;">
+          <th style="padding:10px 14px;text-align:left;">Cliente</th>
+          <th style="padding:10px 14px;text-align:right;">Prezzo Concordato</th>
+          <th style="padding:10px 14px;text-align:right;">Incassato ad Oggi</th>
+          <th style="padding:10px 14px;text-align:right;">Da Incassare</th>
+        </tr></thead>
+        <tbody>${body || '<tr><td colspan="4" style="padding:14px;font-size:12px;color:#999;text-align:center;">Nessun cliente con prezzo concordato nelle schede.</td></tr>'}</tbody>
+        ${body ? `<tfoot><tr style="background:#1a2e4a;color:#fff;font-weight:800;">
+          <td style="padding:10px 14px;font-size:12px;">TOTALE</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tot)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(inc)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(daInc)}</td>
+        </tr></tfoot>` : ''}
+      </table>
+    </div>
+    ${unmatchedHtml}`;
 }
 
 // ═══════ INIT ═══════
