@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 09:40</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 10:31</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -348,6 +348,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
   <div class="tab" onclick="sw('pi1')">🅿️ Piano -1</div>
   <div class="tab" onclick="sw('pi2')">🅿️ Piano -2</div>
   <div class="tab" onclick="sw('incassi')">💶 Incassi SAL</div>
+  <div class="tab" onclick="sw('cantiere')">📐 Contabilità Cantiere</div>
   <div class="tab" onclick="sw('riepilogo')" style="margin-left:auto;">📊 Riepilogo</div>
 </div>
 
@@ -451,7 +452,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
               <a id="fdr-btn" href="#" target="_blank" rel="noopener" style="display:none;padding:6px 10px;background:var(--navy);color:white;border-radius:6px;text-decoration:none;font-size:12px;white-space:nowrap;">Apri ↗</a>
             </div>
           </div>
-          <div class="fg full">
+          <div class="fg full" id="fg-note">
             <label>Note interne</label>
             <textarea id="fnt" placeholder="Condizioni, scadenze, annotazioni…"></textarea>
           </div>
@@ -481,13 +482,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 
     <div class="mfoot">
       <span id="msaved">✓ Salvato</span>
-      <button class="btn btn-danger" onclick="clearHistory()">🗑 Cancella storico</button>
+      <button class="btn btn-danger" id="btn-clearhist" onclick="clearHistory()">🗑 Cancella storico</button>
       <button class="btn" id="btn-edit" style="background:#e8f0fe;color:#1a2e4a;border:1.5px solid #b0c4e8;display:none" onclick="unlockForm()">✏️ Modifica</button>
       <button class="btn btn-g" id="btn-cancel" onclick="cm()" style="display:none">Annulla</button>
       <button class="btn btn-p" id="btn-save" onclick="save()" style="display:none">💾 Salva Scheda</button>
     </div>
-    <hr class="hsep">
-    <div class="history-wrap">
+    <hr class="hsep" id="hist-sep">
+    <div class="history-wrap" id="hist-wrap">
       <div class="history-title">
         <span>📋 Storico Modifiche</span>
         <span id="hist-count" style="font-size:10px;color:#bbb;"></span>
@@ -761,13 +762,14 @@ function renderPlan() {
 // ═══════ SWITCH TAB ═══════
 function sw(p) {
   proj = p;
-  const keys = ['pt','p1','p2','pi1','pi2','incassi','riepilogo'];
+  const keys = ['pt','p1','p2','pi1','pi2','incassi','cantiere','riepilogo'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', keys[i]===p));
-  const isDash = p==='riepilogo', isInc = p==='incassi', isPark = p==='pi1'||p==='pi2';
-  document.getElementById('kpi').style.display = (isDash||isInc) ? 'none' : '';
-  document.getElementById('legend-bar').style.display = (isDash||isInc) ? 'none' : '';
+  const isDash = p==='riepilogo', isInc = p==='incassi', isCant = p==='cantiere', isPark = p==='pi1'||p==='pi2';
+  document.getElementById('kpi').style.display = (isDash||isInc||isCant) ? 'none' : '';
+  document.getElementById('legend-bar').style.display = (isDash||isInc||isCant) ? 'none' : '';
   if (isDash) renderDashboard();
   else if (isInc) renderIncassi();
+  else if (isCant) renderCantiere();
   else if (isPark) { renderParkingKPI(); renderParking(); }
   else { renderKPI(); renderPlan(); }
   trackPresence();
@@ -981,10 +983,21 @@ function setFormLocked(locked) {
     el.disabled = locked;
     el.style.background = locked ? '#f5f5f5' : '';
   });
+  // Link Drive: sempre cliccabile, anche per gli ospiti in sola lettura
   const drBtn = document.getElementById('fdr-btn');
-  if (drBtn) drBtn.style.pointerEvents = locked ? 'none' : '';
+  if (drBtn) drBtn.style.pointerEvents = '';
+  // Note interne e Storico modifiche: visibili solo a chi ha le credenziali (nascosti agli ospiti)
+  const editable = !isGuest();
+  const noteBox = document.getElementById('fg-note');
+  if (noteBox) noteBox.style.display = editable ? '' : 'none';
+  const histWrap = document.getElementById('hist-wrap');
+  const histSep  = document.getElementById('hist-sep');
+  if (histWrap) histWrap.style.display = editable ? '' : 'none';
+  if (histSep)  histSep.style.display  = editable ? '' : 'none';
+  const clrBtn = document.getElementById('btn-clearhist');
+  if (clrBtn) clrBtn.style.display = editable ? 'inline-flex' : 'none';
   // Il pulsante "Modifica" appare solo a editor/admin (mai agli ospiti)
-  document.getElementById('btn-edit').style.display = (locked && !isGuest()) ? 'inline-flex' : 'none';
+  document.getElementById('btn-edit').style.display = (locked && editable) ? 'inline-flex' : 'none';
   document.getElementById('btn-cancel').style.display = !locked ? 'inline-flex' : 'none';
   document.getElementById('btn-save').style.display = !locked ? 'inline-flex' : 'none';
   const addSalBtn = document.getElementById('btn-add-sal');
@@ -1510,6 +1523,18 @@ function renderIncassi() {
         </div>
         <div id="excel-results" style="margin-top:18px;">${renderExcelResults()}</div>
       </div>
+
+      <div style="background:#fff;border:1px solid #e0d8cc;border-radius:10px;padding:18px 20px;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:220px;">
+            <div style="font-size:14px;font-weight:800;color:#1a2e4a;margin-bottom:2px;">📊 Lista clienti — Dare / Avere</div>
+            <div style="font-size:12px;color:#888;">Carica il mastrino clienti (Sottoconto, Causale, Dare, Avere): Dare = Fatturato, Avere = Incassato. Mostro fatturato, da fatturare, incassato e da incassare per cliente.</div>
+          </div>
+          <input type="file" id="clienti-input" accept=".xlsx,.xls" style="display:none;" onchange="handleClientiUpload(this)">
+          <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📂 Carica lista clienti</button>
+        </div>
+        <div id="clienti-results" style="margin-top:18px;">${renderClientiResults()}</div>
+      </div>
       ${totGlobale>0?`
       <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
         <div style="flex:1;min-width:150px;background:#fff;border-radius:10px;padding:16px 20px;border:1px solid #e0d8cc;">
@@ -1864,6 +1889,290 @@ function renderExcelResults() {
       </table>
     </div>
     ${unmatchedHtml}`;
+}
+
+// ═══════ LISTA CLIENTI — MASTRINO DARE/AVERE (Fatturato/Incassato) ═══════
+let xlsxClienti = null;     // [{display,set,joined,fatturato,incasso}]
+let clientiFileName = '';
+const _STOP_NOMI = new Set(['SRL','SRLS','SPA','SNC','SAS','SS','STP','SCARL','SOC','SOCIETA','TRA','PROFESSIONISTI','PROFESSIONALE','DI','E','BENEFIT']);
+
+function _normNomeGenya(raw){
+  if(!raw) return null;
+  const display = String(raw).split('\n')[0].trim();
+  const x = display.toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/\([^)]*\)/g,' ')
+    .replace(/[.,'’`/\\\-]/g,' ')
+    .replace(/\s+/g,' ').trim();
+  const toks = x.split(' ').filter(t => t.length>1 && !_STOP_NOMI.has(t));
+  if(!toks.length) return null;
+  return { display, set:new Set(toks), joined:[...toks].sort().join(''), flat:x.replace(/[^A-Z0-9]/g,'') };
+}
+
+function _lev(a,b){
+  if(Math.abs(a.length-b.length)>2) return 9;
+  const n=b.length; let dp=Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+    let prev=dp[0]; dp[0]=i;
+    for(let j=1;j<=n;j++){ const cur=dp[j]; dp[j]=Math.min(dp[j]+1, dp[j-1]+1, prev+(a[i-1]!==b[j-1]?1:0)); prev=cur; }
+  }
+  return dp[n];
+}
+
+function _matchGenya(on){
+  if(!on || !xlsxClienti) return null;
+  let best=null, bs=0;
+  for(const c of xlsxClienti){
+    let sc=0;
+    if(c.joined===on.joined) sc=3;
+    else {
+      const small = on.set.size<=c.set.size ? on.set : c.set;
+      const big   = on.set.size<=c.set.size ? c.set : on.set;
+      let common=0; small.forEach(t=>{ if(big.has(t)) common++; });
+      if(common===small.size && small.size>=2) sc=2.2;
+      else if(common===small.size && small.size===1 && [...small][0].length>=4) sc=1.2;
+      else if(common>=2) sc=1.0;
+      else if(Math.min(on.joined.length,c.joined.length)>=8 && _lev(on.joined,c.joined)<=2) sc=1.0;
+    }
+    // Fallback robusto: stringa compatta (gestisce "Log Center" vs "LOGCENTER")
+    if(sc<1.5 && on.flat && c.flat && Math.min(on.flat.length,c.flat.length)>=5 && (on.flat.includes(c.flat)||c.flat.includes(on.flat))) sc=1.6;
+    if(sc>bs){ bs=sc; best=c; }
+  }
+  if(bs>=1.5) return {c:best, sure:true};
+  if(bs>=1.0) return {c:best, sure:false};
+  return null;
+}
+
+function handleClientiUpload(input){
+  const file=input.files[0]; if(!file) return;
+  clientiFileName=file.name;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+      let h=-1,cN=-1,cC=-1,cD=-1,cA=-1,cDesc=-1;
+      for(let i=0;i<rows.length;i++){
+        const r=(rows[i]||[]).map(v=>String(v==null?'':v).trim().toLowerCase());
+        const iN=r.findIndex(v=>v.includes('sottoconto'));
+        if(iN!==-1){
+          h=i; cN=iN;
+          cC=r.findIndex(v=>v.includes('causale'));
+          cD=r.findIndex(v=>v.replace(/\s/g,'').startsWith('dare'));
+          cA=r.findIndex(v=>v.replace(/\s/g,'').startsWith('avere'));
+          for(let k=r.length-1;k>=0;k--){ if(r[k].includes('descrizione')){ cDesc=k; break; } }
+          break;
+        }
+      }
+      if(h===-1 || cD===-1 || cA===-1){ alert('Formato non riconosciuto: serve il mastrino clienti con colonne Sottoconto, Causale, Dare €, Avere €.'); return; }
+      const num=v=>{
+        if(typeof v==='number') return v;
+        if(v==null||v==='') return 0;
+        let s=String(v).replace(/[^0-9,.\-]/g,'');
+        if(s.indexOf(',')>-1) s=s.replace(/\./g,'').replace(',','.');
+        return parseFloat(s)||0;
+      };
+      const agg={};
+      for(let i=h+1;i<rows.length;i++){
+        const r=rows[i]; if(!r||!r.length) continue;
+        const nm=_normNomeGenya(r[cN]); if(!nm) continue;
+        const caus=String(r[cC]==null?'':r[cC]).trim().toUpperCase();
+        const descr=cDesc>-1 ? String(r[cDesc]==null?'':r[cDesc]).toLowerCase() : '';
+        if(caus==='T01' || caus==='S01' || /apertura conti|chiusura conti/.test(descr)) continue; // riporti di saldo
+        const k=nm.joined;
+        if(!agg[k]) agg[k]={display:nm.display, set:nm.set, joined:k, flat:nm.flat, fatturato:0, incasso:0};
+        agg[k].fatturato+=num(r[cD]); agg[k].incasso+=num(r[cA]);
+      }
+      xlsxClienti=Object.values(agg);
+      const box=document.getElementById('clienti-results');
+      if(box) box.innerHTML=renderClientiResults();
+    }catch(err){ alert('Errore lettura file clienti: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
+
+function renderClientiResults(){
+  if(!xlsxClienti){
+    return '<div style="font-size:12px;color:#aaa;">Nessun file clienti caricato. Carica il mastrino Dare/Avere per vedere fatturato e incassato per cliente.</div>';
+  }
+  const fmt = n => '€ ' + Math.round(n).toLocaleString('it-IT');
+  const clienti = buildClientiConcordato();
+  const used = new Set();
+  let tConc=0,tF=0,tDF=0,tI=0,tDI=0;
+  const body = Object.values(clienti).map(cl => {
+    const on = _normNomeGenya(cl.nome);
+    const m = on ? _matchGenya(on) : null;
+    if(m) used.add(m.c.joined);
+    const fatt = m ? m.c.fatturato : 0;
+    const inc  = m ? m.c.incasso : 0;
+    const daFatt = cl.concordato - fatt;
+    const daInc  = cl.concordato - inc;
+    tConc+=cl.concordato; tF+=fatt; tDF+=daFatt; tI+=inc; tDI+=daInc;
+    const noMatch = !m;
+    return `<tr style="border-bottom:1px solid #f0e8dc;">
+      <td style="padding:9px 14px;font-size:12px;font-weight:700;">${esc(cl.nome)}${noMatch?' <span style="font-size:10px;color:#bbb;font-weight:400;">(non nel file)</span>':(m&&!m.sure?' <span style="font-size:10px;color:#e0a800;font-weight:400;">(match incerto)</span>':'')}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;color:#1a2e4a;">${cl.concordato>0?fmt(cl.concordato):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:#1a2e4a;">${m?fmt(fatt):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:${daFatt>0?'#c62828':'#2e7d32'};">${m?(Math.round(daFatt)===0?'✓':fmt(daFatt)):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:#2e7d32;font-weight:700;">${m?fmt(inc):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:${daInc>0?'#c62828':'#2e7d32'};font-weight:700;">${m?(Math.round(daInc)===0?'✓ Saldato':fmt(daInc)):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  const summary = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div style="background:#eef1f8;border:1px solid #c8d2ec;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#5a6a99;margin-bottom:3px;">Fatturato</div>
+        <div style="font-size:18px;font-weight:800;color:#1a2e4a;">${fmt(tF)}</div>
+      </div>
+      <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#a86a00;margin-bottom:3px;">Da Fatturare</div>
+        <div style="font-size:18px;font-weight:800;color:#e65100;">${fmt(tDF)}</div>
+      </div>
+      <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#2e7d32;margin-bottom:3px;">Incassato</div>
+        <div style="font-size:18px;font-weight:800;color:#2e7d32;">${fmt(tI)}</div>
+      </div>
+      <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#c62828;margin-bottom:3px;">Da Incassare</div>
+        <div style="font-size:18px;font-weight:800;color:#c62828;">${fmt(tDI)}</div>
+      </div>
+    </div>`;
+
+  return `
+    <div style="font-size:11px;color:#888;margin-bottom:10px;">📄 File: <strong>${esc(clientiFileName)}</strong> · ${xlsxClienti.length} clienti · Dare = Fatturato, Avere = Incassato.</div>
+    ${summary}
+    <div style="border:1px solid #e0d8cc;border-radius:8px;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;min-width:640px;">
+        <thead><tr style="background:#f5f0e8;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;">
+          <th style="padding:10px 14px;text-align:left;">Cliente</th>
+          <th style="padding:10px 14px;text-align:right;">Prezzo Concordato</th>
+          <th style="padding:10px 14px;text-align:right;">Fatturato</th>
+          <th style="padding:10px 14px;text-align:right;">Da Fatturare</th>
+          <th style="padding:10px 14px;text-align:right;">Incassato</th>
+          <th style="padding:10px 14px;text-align:right;">Da Incassare</th>
+        </tr></thead>
+        <tbody>${body||'<tr><td colspan="6" style="padding:14px;font-size:12px;color:#999;text-align:center;">Nessun cliente con prezzo concordato nelle schede.</td></tr>'}</tbody>
+        ${body?`<tfoot><tr style="background:#1a2e4a;color:#fff;font-weight:800;">
+          <td style="padding:10px 14px;font-size:12px;">TOTALE</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tConc)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tF)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tDF)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tI)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tDI)}</td>
+        </tr></tfoot>`:''}
+      </table>
+    </div>`;
+}
+
+// ═══════ CONTABILITÀ DI CANTIERE ═══════
+let contabileDiTower = null;   // {costi, ricavi, totC, totR, fileName, centro}
+
+function fmtEur2(n){
+  if(n===null||n===undefined) return '—';
+  return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+}
+
+function handleContabileUpload(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+      const isnum=v=>typeof v==='number'&&!isNaN(v);
+      const txt=v=>v==null?'':String(v).trim();
+      let costRow=-1,costCol=-1,ricCol=-1,centro='';
+      for(let i=0;i<rows.length;i++){
+        const r=rows[i]||[];
+        if(/CENTRO DI COSTO/i.test(r.map(txt).join(' '))){ const m=r.map(txt).filter(Boolean); centro=m[m.length-1]||''; }
+        if(costRow<0){
+          for(let j=0;j<r.length;j++){ if(txt(r[j]).toUpperCase()==='COSTI'){ costRow=i; costCol=j; break; } }
+          if(costRow===i){ for(let j=costCol+1;j<r.length;j++){ if(txt(r[j]).toUpperCase()==='RICAVI'){ ricCol=j; break; } } }
+        }
+      }
+      if(costRow<0){ alert('Formato non riconosciuto: manca la sezione COSTI nella situazione contabile.'); return; }
+      const cell=(r,c)=>(c>-1&&c<r.length&&isnum(r[c]))?r[c]:0;
+      const numCols=(row,fr,to)=>{ const out=[]; for(let j=fr;j<Math.min(to,row.length);j++){ if(isnum(row[j])) out.push(j); } return out; };
+      const hrow=rows[costRow];
+      const costCols=numCols(hrow,costCol+1, ricCol>costCol?ricCol:hrow.length);
+      const ricCols =ricCol>-1?numCols(hrow,ricCol+1,hrow.length):[];
+      const firstCostVal=costCols.length?costCols[0]:costCol+1;
+      const firstRicVal =ricCols.length?ricCols[0]:ricCol+1;
+      const labelbefore=(r,start,valc)=>{ let lab=''; for(let j=start+1;j<valc;j++){ if(j<r.length&&txt(r[j])&&!isnum(r[j])) lab=txt(r[j]); } return lab; };
+      const sumCols=(r,cols)=>cols.reduce((s,c)=>s+cell(r,c),0);
+      const hasNum=(r,cols)=>cols.some(c=>isnum(r[c]));
+      const skip=/TOTALE|UTILE|PERDITA|PAREGGIO/;
+      const costi=[], ricavi=[];
+      for(let i=costRow+1;i<rows.length;i++){
+        const r=rows[i]||[];
+        if(costCols.length&&hasNum(r,costCols)){ const lab=labelbefore(r,costCol,firstCostVal); if(lab&&!skip.test(lab.toUpperCase())) costi.push({label:lab,val:sumCols(r,costCols)}); }
+        if(ricCols.length&&hasNum(r,ricCols)){ const lab=labelbefore(r,ricCol,firstRicVal); if(lab&&!skip.test(lab.toUpperCase())) ricavi.push({label:lab,val:sumCols(r,ricCols)}); }
+        if(/PAREGGIO/.test(r.map(txt).join(' ').toUpperCase())) break;
+      }
+      if(!costi.length&&!ricavi.length){ alert('Nessuna voce di costo/ricavo trovata nel file.'); return; }
+      contabileDiTower={costi,ricavi,totC:costi.reduce((s,c)=>s+c.val,0),totR:ricavi.reduce((s,c)=>s+c.val,0),fileName:file.name,centro};
+      renderCantiere();
+    }catch(err){ alert('Errore lettura situazione contabile: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
+
+function _kpiSmall(lbl,val,col){
+  return `<div style="flex:1;min-width:120px;background:#faf7f1;border-radius:7px;padding:10px 14px;border:1px solid #ece3d4;">
+      <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#999;margin-bottom:2px;">${lbl}</div>
+      <div style="font-size:17px;font-weight:800;color:${col};">${val}</div></div>`;
+}
+function _barRow(label,val,max,color){
+  return `<div style="margin-bottom:6px;">
+    <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-bottom:2px;"><span style="color:#555;">${esc(label)}</span><span style="font-weight:700;white-space:nowrap;">${fmtEur2(val)}</span></div>
+    <div style="height:6px;background:#f0e8dc;border-radius:3px;overflow:hidden;"><div style="height:100%;width:${Math.round(val/max*100)}%;background:${color};border-radius:3px;"></div></div>
+  </div>`;
+}
+function _econColumns(costi,ricavi){
+  const maxC=Math.max(1,...costi.map(c=>c.val)), maxR=Math.max(1,...ricavi.map(c=>c.val));
+  const totC=costi.reduce((s,c)=>s+c.val,0), totR=ricavi.reduce((s,c)=>s+c.val,0);
+  return `<div style="display:flex;gap:18px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:240px;"><div style="font-weight:800;color:#c62828;font-size:12px;margin-bottom:8px;">📉 COSTI — ${fmtEur2(totC)}</div>${costi.length?costi.map(c=>_barRow(c.label,c.val,maxC,'#d8604f')).join(''):'<div style="font-size:11px;color:#bbb;">Nessuna voce.</div>'}</div>
+      <div style="flex:1;min-width:240px;"><div style="font-weight:800;color:#2e7d32;font-size:12px;margin-bottom:8px;">📈 RICAVI — ${fmtEur2(totR)}</div>${ricavi.length?ricavi.map(c=>_barRow(c.label,c.val,maxR,'#4caf7d')).join(''):'<div style="font-size:11px;color:#bbb;">Nessuna voce.</div>'}</div>
+    </div>`;
+}
+
+function renderCantiere(){
+  const g=contabileDiTower;
+  const upBtn=`<label style="cursor:pointer;background:#1a2e4a;color:#fff;padding:9px 16px;border-radius:8px;font-size:12px;font-weight:700;display:inline-block;">📂 ${g?'Aggiorna situazione contabile':'Carica situazione contabile'}<input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleContabileUpload(this)"></label>`;
+  let body;
+  if(g){
+    const ris=g.totR-g.totC, perdita=ris<0;
+    body=`
+      <div style="font-size:11px;color:#888;margin:10px 0 14px;">📄 ${esc(g.fileName)}${g.centro?' · '+esc(g.centro):''}</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;">
+        ${_kpiSmall('Totale Costi',fmtEur2(g.totC),'#c62828')}
+        ${_kpiSmall('Totale Ricavi',fmtEur2(g.totR),'#2e7d32')}
+        ${_kpiSmall(perdita?'Perdita':'Utile',fmtEur2(Math.abs(ris)),perdita?'#c62828':'#2e7d32')}
+      </div>
+      ${_econColumns(g.costi,g.ricavi)}`;
+  } else {
+    body=`<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:16px 20px;color:#795548;font-size:13px;margin-top:12px;">⚠️ Carica la <b>situazione contabile del cantiere Di Tower</b> (export dal gestionale contabile, con le sezioni COSTI e RICAVI) per vedere il riepilogo economico di cantiere.</div>`;
+  }
+  document.getElementById('content').innerHTML=`
+    <div class="dash">
+      <div style="padding:24px;max-width:1000px;margin:0 auto;">
+        <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">📐 Contabilità di Cantiere — Di Tower</h2>
+        <p style="font-size:13px;color:#666;margin-bottom:16px;">Costi e ricavi del cantiere caricati dalla situazione contabile. Il file viene letto solo nel browser, non viene salvato.</p>
+        <div class="dcard" style="border:2px solid #c9a84c;">
+          <div class="dcard-head"><h3>🏢 Situazione Contabile Di Tower</h3><p>${g&&g.centro?esc(g.centro):'Costi e ricavi di cantiere'}</p></div>
+          <div class="dcard-body" style="padding:16px 18px;">
+            ${upBtn}
+            ${body}
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 // ═══════ INIT ═══════
