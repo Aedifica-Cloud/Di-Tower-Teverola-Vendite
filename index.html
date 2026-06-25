@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 10:48</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 11:02</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -347,7 +347,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
   <div class="tab" onclick="sw('p2')">🏢 Piano Secondo</div>
   <div class="tab" onclick="sw('pi1')">🅿️ Piano -1</div>
   <div class="tab" onclick="sw('pi2')">🅿️ Piano -2</div>
-  <div class="tab" onclick="sw('incassi')">💶 Incassi SAL</div>
+  <div class="tab" onclick="sw('incassi')">💶 Incassi Clienti</div>
   <div class="tab" onclick="sw('cantiere')">📐 Contabilità Cantiere</div>
   <div class="tab" onclick="sw('riepilogo')" style="margin-left:auto;">📊 Riepilogo</div>
 </div>
@@ -1470,103 +1470,15 @@ function renderDashboard() {
     </div>`;
 }
 
-// ═══════ INCASSI SAL ═══════
+// ═══════ INCASSI CLIENTI ═══════
 function renderIncassi() {
-  const keys = ['pt','p1','p2'];
-  const pianoNames = { pt:'Piano Terra', p1:'Piano Primo', p2:'Piano Secondo' };
-  const today = new Date(); today.setHours(0,0,0,0);
-
-  let totGlobale=0, incGlobale=0, tableRows='';
-  for (const pk of keys) {
-    const units = D[pk].units;
-    const lista = Object.entries(units).filter(([,u])=>u.sal&&u.sal.length>0);
-    if (!lista.length) continue;
-    tableRows += `<tr style="background:#1a2e4a;color:#fff;">
-      <td colspan="7" style="padding:10px 14px;font-weight:800;font-size:13px;">${pianoNames[pk]}</td></tr>`;
-    for (const [uid,u] of lista) {
-      const sal = u.sal||[];
-      const tot = sal.reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
-      const inc = sal.filter(r=>r.incassato).reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
-      const att = tot - inc;
-      totGlobale += tot; incGlobale += inc;
-      const pct = tot>0 ? Math.round(inc/tot*100) : 0;
-      const next = sal.find(r=>!r.incassato&&r.dataPrev);
-      const nextScaduto = next && new Date(next.dataPrev) < today;
-      tableRows += `<tr style="border-bottom:1px solid #f0e8dc;">
-        <td style="padding:9px 14px;font-size:12px;">${u.lbl}</td>
-        <td style="padding:9px 14px;font-size:12px;font-weight:700;">${esc(u.owner||'—')}</td>
-        <td style="padding:9px 14px;font-size:11px;color:#888;">${u.tipo}</td>
-        <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;">${tot>0?'€ '+fmtN(tot):'—'}</td>
-        <td style="padding:9px 14px;font-size:12px;text-align:right;color:#2e7d32;font-weight:700;">${inc>0?'€ '+fmtN(inc):'—'}</td>
-        <td style="padding:9px 14px;font-size:12px;text-align:right;color:${att>0?'#c62828':'#2e7d32'};font-weight:700;">${att>0?'€ '+fmtN(att):'✓ Saldato'}</td>
-        <td style="padding:9px 14px;font-size:11px;color:${nextScaduto?'#c62828':'#888'};">
-          ${next?`<strong>${next.dataPrev.split('-').reverse().join('/')}</strong>${nextScaduto?' ⚠️':''}<br>€ ${(parseFloat(next.importo)||0).toLocaleString('it-IT')}`:'—'}
-        </td>
-      </tr>`;
-    }
-  }
-
-  const attGlobale = totGlobale - incGlobale;
   document.getElementById('content').innerHTML = `
     <div style="padding:24px;max-width:1000px;margin:0 auto;">
-      <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">💶 Situazione Incassi SAL</h2>
-      <p style="font-size:13px;color:#666;margin-bottom:20px;">Riepilogo dei piani di pagamento inseriti nelle schede unità.</p>
-
-      <div style="background:#fff;border:1px solid #e0d8cc;border-radius:10px;padding:18px 20px;margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:220px;">
-            <div style="font-size:14px;font-weight:800;color:#1a2e4a;margin-bottom:2px;">📥 Incassi da file Excel</div>
-            <div style="font-size:12px;color:#888;">Carica la "Situazione Scadenze": filtro i clienti, le partite DT e sommo il Totale Partita per cliente.</div>
-          </div>
-          <input type="file" id="excel-input" accept=".xlsx,.xls" style="display:none;" onchange="handleExcelFile(this)">
-          <button onclick="document.getElementById('excel-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📂 Carica file Excel</button>
-        </div>
-        <div id="excel-results" style="margin-top:18px;">${renderExcelResults()}</div>
-      </div>
-
-      <div style="background:#fff;border:1px solid #e0d8cc;border-radius:10px;padding:18px 20px;margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:220px;">
-            <div style="font-size:14px;font-weight:800;color:#1a2e4a;margin-bottom:2px;">📊 Lista clienti — Dare / Avere</div>
-            <div style="font-size:12px;color:#888;">Carica il mastrino clienti (Sottoconto, Causale, Dare, Avere): Dare = Fatturato, Avere = Incassato. Mostro fatturato, da fatturare, incassato e da incassare per cliente.</div>
-          </div>
-          <input type="file" id="clienti-input" accept=".xlsx,.xls" style="display:none;" onchange="handleClientiUpload(this)">
-          <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📂 Carica lista clienti</button>
-        </div>
-        <div id="clienti-results" style="margin-top:18px;">${renderClientiResults()}</div>
-      </div>
-      ${totGlobale>0?`
-      <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:150px;background:#fff;border-radius:10px;padding:16px 20px;border:1px solid #e0d8cc;">
-          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Totale Pianificato</div>
-          <div style="font-size:20px;font-weight:800;color:#1a2e4a;">€ ${fmtN(totGlobale)}</div>
-        </div>
-        <div style="flex:1;min-width:150px;background:#e8f5e9;border-radius:10px;padding:16px 20px;border:1px solid #c8e6c9;">
-          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Incassato</div>
-          <div style="font-size:20px;font-weight:800;color:#2e7d32;">€ ${fmtN(incGlobale)}</div>
-        </div>
-        <div style="flex:1;min-width:150px;background:#ffebee;border-radius:10px;padding:16px 20px;border:1px solid #ffcdd2;">
-          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#999;margin-bottom:4px;">Da Incassare</div>
-          <div style="font-size:20px;font-weight:800;color:#c62828;">€ ${fmtN(attGlobale)}</div>
-        </div>
-      </div>
-      <div style="background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e0d8cc;">
-        <table style="width:100%;border-collapse:collapse;">
-          <thead><tr style="background:#f5f0e8;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;">
-            <th style="padding:10px 14px;text-align:left;">Unità</th>
-            <th style="padding:10px 14px;text-align:left;">Azienda</th>
-            <th style="padding:10px 14px;text-align:left;">Tipo</th>
-            <th style="padding:10px 14px;text-align:right;">Totale SAL</th>
-            <th style="padding:10px 14px;text-align:right;">Incassato</th>
-            <th style="padding:10px 14px;text-align:right;">Da Incassare</th>
-            <th style="padding:10px 14px;text-align:left;">Prossima Rata</th>
-          </tr></thead>
-          <tbody>${tableRows}</tbody>
-        </table>
-      </div>` : `
-      <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:24px;color:#795548;font-size:13px;">
-        ℹ️ Nessun SAL inserito. Apri la scheda di un'unità → tab SAL / Pagamenti per aggiungere un piano di pagamento.
-      </div>`}
+      <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">💶 Incassi Clienti</h2>
+      <p style="font-size:13px;color:#666;margin-bottom:18px;">Carica il mastrino clienti (colonne Sottoconto, Causale, Partita, Dare, Avere). Conto solo le righe con partita che inizia per <strong>DT</strong> (Di Tower): Dare = Fatturato, Avere = Incassato. Il file è letto solo nel browser, non viene salvato.</p>
+      <input type="file" id="clienti-input" accept=".xlsx,.xls" style="display:none;" onchange="handleClientiUpload(this)">
+      <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:18px;">📂 Carica file clienti</button>
+      <div id="clienti-results">${renderClientiResults()}</div>
     </div>`;
 }
 
@@ -2026,34 +1938,13 @@ function renderClientiResults(){
     </tr>`;
   }).join('');
 
-  const summary = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
-      <div style="background:#eef1f8;border:1px solid #c8d2ec;border-radius:8px;padding:12px 14px;">
-        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#5a6a99;margin-bottom:3px;">Fatturato</div>
-        <div style="font-size:18px;font-weight:800;color:#1a2e4a;">${fmt(tF)}</div>
-      </div>
-      <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:12px 14px;">
-        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#a86a00;margin-bottom:3px;">Da Fatturare</div>
-        <div style="font-size:18px;font-weight:800;color:#e65100;">${fmt(tDF)}</div>
-      </div>
-      <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:12px 14px;">
-        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#2e7d32;margin-bottom:3px;">Incassato</div>
-        <div style="font-size:18px;font-weight:800;color:#2e7d32;">${fmt(tI)}</div>
-      </div>
-      <div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:12px 14px;">
-        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#c62828;margin-bottom:3px;">Da Incassare</div>
-        <div style="font-size:18px;font-weight:800;color:#c62828;">${fmt(tDI)}</div>
-      </div>
-    </div>`;
-
   return `
     <div style="font-size:11px;color:#888;margin-bottom:10px;">📄 File: <strong>${esc(clientiFileName)}</strong> · ${xlsxClienti.length} clienti · Dare = Fatturato, Avere = Incassato · <strong>solo partite DT (Di Tower)</strong>.</div>
-    ${summary}
     <div style="border:1px solid #e0d8cc;border-radius:8px;overflow:auto;">
       <table style="width:100%;border-collapse:collapse;min-width:640px;">
         <thead><tr style="background:#f5f0e8;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;">
           <th style="padding:10px 14px;text-align:left;">Cliente</th>
-          <th style="padding:10px 14px;text-align:right;">Prezzo Concordato</th>
+          <th style="padding:10px 14px;text-align:right;">Tot Prezzo di Vendita</th>
           <th style="padding:10px 14px;text-align:right;">Fatturato</th>
           <th style="padding:10px 14px;text-align:right;">Da Fatturare</th>
           <th style="padding:10px 14px;text-align:right;">Incassato</th>
