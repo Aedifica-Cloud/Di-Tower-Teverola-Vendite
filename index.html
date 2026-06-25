@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 10:31</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 10:48</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -1952,7 +1952,7 @@ function handleClientiUpload(input){
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      let h=-1,cN=-1,cC=-1,cD=-1,cA=-1,cDesc=-1;
+      let h=-1,cN=-1,cC=-1,cD=-1,cA=-1,cDesc=-1,cP=-1;
       for(let i=0;i<rows.length;i++){
         const r=(rows[i]||[]).map(v=>String(v==null?'':v).trim().toLowerCase());
         const iN=r.findIndex(v=>v.includes('sottoconto'));
@@ -1961,11 +1961,13 @@ function handleClientiUpload(input){
           cC=r.findIndex(v=>v.includes('causale'));
           cD=r.findIndex(v=>v.replace(/\s/g,'').startsWith('dare'));
           cA=r.findIndex(v=>v.replace(/\s/g,'').startsWith('avere'));
+          cP=r.findIndex(v=>v.includes('partita'));
           for(let k=r.length-1;k>=0;k--){ if(r[k].includes('descrizione')){ cDesc=k; break; } }
           break;
         }
       }
       if(h===-1 || cD===-1 || cA===-1){ alert('Formato non riconosciuto: serve il mastrino clienti con colonne Sottoconto, Causale, Dare €, Avere €.'); return; }
+      if(cP===-1){ alert('Nel file clienti non trovo la colonna "Partita": senza di essa non posso attribuire il Dare/Avere alle sole partite DT (Di Tower). Aggiungi la colonna Partita quando esporti il mastrino, oppure inviami il file così verifico il formato.'); return; }
       const num=v=>{
         if(typeof v==='number') return v;
         if(v==null||v==='') return 0;
@@ -1977,6 +1979,9 @@ function handleClientiUpload(input){
       for(let i=h+1;i<rows.length;i++){
         const r=rows[i]; if(!r||!r.length) continue;
         const nm=_normNomeGenya(r[cN]); if(!nm) continue;
+        // Imputabile a Di Tower SOLO se la partita inizia con DT
+        const part=String(r[cP]==null?'':r[cP]).trim().toUpperCase();
+        if(!part.startsWith('DT')) continue;
         const caus=String(r[cC]==null?'':r[cC]).trim().toUpperCase();
         const descr=cDesc>-1 ? String(r[cDesc]==null?'':r[cDesc]).toLowerCase() : '';
         if(caus==='T01' || caus==='S01' || /apertura conti|chiusura conti/.test(descr)) continue; // riporti di saldo
@@ -2042,7 +2047,7 @@ function renderClientiResults(){
     </div>`;
 
   return `
-    <div style="font-size:11px;color:#888;margin-bottom:10px;">📄 File: <strong>${esc(clientiFileName)}</strong> · ${xlsxClienti.length} clienti · Dare = Fatturato, Avere = Incassato.</div>
+    <div style="font-size:11px;color:#888;margin-bottom:10px;">📄 File: <strong>${esc(clientiFileName)}</strong> · ${xlsxClienti.length} clienti · Dare = Fatturato, Avere = Incassato · <strong>solo partite DT (Di Tower)</strong>.</div>
     ${summary}
     <div style="border:1px solid #e0d8cc;border-radius:8px;overflow:auto;">
       <table style="width:100%;border-collapse:collapse;min-width:640px;">
