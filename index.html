@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 11:02</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 12:18</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -1470,15 +1470,109 @@ function renderDashboard() {
     </div>`;
 }
 
-// ═══════ INCASSI CLIENTI ═══════
+// ═══════ INCASSI CLIENTI (scadenziario + mastrino, incrocio per partita DT) ═══════
 function renderIncassi() {
+  const haveCli = !!xlsxClienti;
+  const ok = (lbl,n) => `<span style="color:#2e7d32;font-size:11px;font-weight:700;margin-left:8px;">✓ ${esc(lbl)} (${n})</span>`;
   document.getElementById('content').innerHTML = `
-    <div style="padding:24px;max-width:1000px;margin:0 auto;">
+    <div style="padding:24px;max-width:1100px;margin:0 auto;">
       <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">💶 Incassi Clienti</h2>
-      <p style="font-size:13px;color:#666;margin-bottom:18px;">Carica il mastrino clienti (colonne Sottoconto, Causale, Partita, Dare, Avere). Conto solo le righe con partita che inizia per <strong>DT</strong> (Di Tower): Dare = Fatturato, Avere = Incassato. Il file è letto solo nel browser, non viene salvato.</p>
-      <input type="file" id="clienti-input" accept=".xlsx,.xls" style="display:none;" onchange="handleClientiUpload(this)">
-      <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:18px;">📂 Carica file clienti</button>
-      <div id="clienti-results">${renderClientiResults()}</div>
+      <p style="font-size:13px;color:#666;margin-bottom:18px;">Carica il <strong>mastrino clienti</strong> (Sottoconto, Causale, Descrizione, Partita, Dare, Avere). Per i clienti del progetto Di Tower leggo la <strong>descrizione</strong>: se inizia per <strong>DT</strong> la riga è di Di Tower → sommo il <strong>Dare</strong> (Fatturato) e l'<strong>Avere</strong> (Incassato) collegato a quelle partite. Il file è letto solo nel browser, non viene salvato.</p>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+        <input type="file" id="clienti-input" accept=".xlsx,.xls" style="display:none;" onchange="handleClientiUpload(this)">
+        <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;">📂 Carica file clienti</button>
+        ${haveCli?ok(clientiFileName, xlsxClienti.length+' clienti DT'):''}
+      </div>
+      <div id="incassi-results">${renderIncassiCombined()}</div>
+    </div>`;
+}
+
+// Matcher generico (riusa la stessa logica di _matchGenya su una lista qualsiasi)
+function _matchList(on, list){
+  if(!on || !list || !list.length) return null;
+  let best=null, bs=0;
+  for(const c of list){
+    let sc=0;
+    if(c.joined===on.joined) sc=3;
+    else {
+      const small = on.set.size<=c.set.size ? on.set : c.set;
+      const big   = on.set.size<=c.set.size ? c.set : on.set;
+      let common=0; small.forEach(t=>{ if(big.has(t)) common++; });
+      if(common===small.size && small.size>=2) sc=2.2;
+      else if(common===small.size && small.size===1 && [...small][0].length>=4) sc=1.2;
+      else if(common>=2) sc=1.0;
+      else if(Math.min(on.joined.length,c.joined.length)>=8 && _lev(on.joined,c.joined)<=2) sc=1.0;
+    }
+    if(sc<1.5 && on.flat && c.flat && Math.min(on.flat.length,c.flat.length)>=5 && (on.flat.includes(c.flat)||c.flat.includes(on.flat))) sc=1.6;
+    if(sc>bs){ bs=sc; best=c; }
+  }
+  if(bs>=1.5) return {c:best, sure:true};
+  if(bs>=1.0) return {c:best, sure:false};
+  return null;
+}
+
+function renderIncassiCombined(){
+  if(!xlsxClienti){
+    return '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:20px;color:#795548;font-size:13px;">ℹ️ Carica il mastrino clienti per vedere la situazione. Per i clienti di Di Tower considero solo le righe con descrizione che inizia per DT.</div>';
+  }
+  const fmt = n => '€ ' + Math.round(n).toLocaleString('it-IT');
+  const clienti = buildClientiConcordato();
+
+  // Un cliente del progetto Di Tower per riga, abbinato al file clienti
+  const recs = Object.values(clienti).map(cl => {
+    const on = _normNomeGenya(cl.nome);
+    const m  = on ? _matchList(on, xlsxClienti) : null;
+    return {
+      nome: cl.nome,
+      partite: m ? m.c.partite : [],
+      prezzo: cl.concordato,
+      fatturato: m ? m.c.fatturato : null,
+      incassato: m ? m.c.incasso : null,
+    };
+  });
+
+  let tPrz=0,tF=0,tDF=0,tI=0,tDI=0;
+  const body = recs.sort((a,b)=>(b.incassato||0)-(a.incassato||0)).map(r => {
+    const daFatt = r.fatturato!==null ? r.prezzo - r.fatturato : null;
+    const daInc  = r.incassato!==null ? r.prezzo - r.incassato : null;
+    tPrz+=r.prezzo; tF+=(r.fatturato||0); tI+=(r.incassato||0);
+    if(daFatt!==null) tDF+=daFatt;
+    if(daInc!==null)  tDI+=daInc;
+    const partTxt = r.partite && r.partite.length ? r.partite.join(', ') : '<span style="color:#bbb;">—</span>';
+    return `<tr style="border-bottom:1px solid #f0e8dc;">
+      <td style="padding:9px 14px;font-size:12px;font-weight:700;">${esc(r.nome)}</td>
+      <td style="padding:9px 14px;font-size:11px;color:#555;">${partTxt}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;font-weight:700;color:#1a2e4a;">${r.prezzo>0?fmt(r.prezzo):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:#1a2e4a;">${r.fatturato!==null?fmt(r.fatturato):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:${daFatt>0?'#c62828':'#2e7d32'};">${daFatt!==null?(Math.round(daFatt)===0?'✓':fmt(daFatt)):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:#2e7d32;font-weight:700;">${r.incassato!==null?fmt(r.incassato):'—'}</td>
+      <td style="padding:9px 14px;font-size:12px;text-align:right;color:${daInc>0?'#c62828':'#2e7d32'};font-weight:700;">${daInc!==null?(Math.round(daInc)===0?'✓ Saldato':fmt(daInc)):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="font-size:11px;color:#888;margin-bottom:10px;">Incrocio per <strong>partita DT</strong> · Prezzo di vendita dalle schede unità · Fatturato = Dare, Incassato = Avere dal mastrino.</div>
+    <div style="border:1px solid #e0d8cc;border-radius:8px;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;min-width:760px;">
+        <thead><tr style="background:#f5f0e8;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;">
+          <th style="padding:10px 14px;text-align:left;">Cliente</th>
+          <th style="padding:10px 14px;text-align:left;">Partite DT</th>
+          <th style="padding:10px 14px;text-align:right;">Tot Prezzo di Vendita</th>
+          <th style="padding:10px 14px;text-align:right;">Fatturato</th>
+          <th style="padding:10px 14px;text-align:right;">Da Fatturare</th>
+          <th style="padding:10px 14px;text-align:right;">Incassato</th>
+          <th style="padding:10px 14px;text-align:right;">Da Incassare</th>
+        </tr></thead>
+        <tbody>${body||'<tr><td colspan="7" style="padding:14px;font-size:12px;color:#999;text-align:center;">Nessun dato.</td></tr>'}</tbody>
+        ${body?`<tfoot><tr style="background:#1a2e4a;color:#fff;font-weight:800;">
+          <td style="padding:10px 14px;font-size:12px;" colspan="2">TOTALE</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tPrz)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tF)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tDF)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tI)}</td>
+          <td style="padding:10px 14px;font-size:12px;text-align:right;">${fmt(tDI)}</td>
+        </tr></tfoot>`:''}
+      </table>
     </div>`;
 }
 
@@ -1803,6 +1897,53 @@ function renderExcelResults() {
     ${unmatchedHtml}`;
 }
 
+// ═══════ SCADENZIARIO (Situazione Scadenze) — partite DT per cliente ═══════
+let scadData = null;   // { fileName, list:[{display,set,joined,flat,partite:[],totale}] }
+
+function handleScadFile(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      let hi=-1,cNom=-1,cTipo=-1,cPart=-1,cTot=-1;
+      for(let i=0;i<Math.min(rows.length,30);i++){
+        const r=rows[i].map(c=>String(c||'').trim().toLowerCase());
+        const iNom=r.indexOf('nominativo'); const iTot=r.indexOf('totale partita');
+        if(iNom!==-1 && iTot!==-1){
+          hi=i; cNom=iNom; cTot=iTot;
+          cTipo=r.findIndex(c=>c.startsWith('cliente / fornitore')||c==='tipo');
+          cPart=r.indexOf('partita');
+          break;
+        }
+      }
+      if(hi===-1 || cPart===-1){ alert('Formato scadenziario non riconosciuto: servono le colonne Nominativo, Partita, Totale Partita (estrazione "Situazione Scadenze").'); return; }
+      const byClient={};
+      for(let i=hi+1;i<rows.length;i++){
+        const row=rows[i];
+        const tipo=String(row[cTipo]==null?'':row[cTipo]).trim().toLowerCase();
+        const part=String(row[cPart]==null?'':row[cPart]).trim();
+        if(tipo!=='cliente') continue;
+        if(!part.toUpperCase().startsWith('DT')) continue;
+        const nom=String(row[cNom]==null?'':row[cNom]).trim(); if(!nom) continue;
+        const nn=_normNomeGenya(nom); if(!nn) continue;
+        const tot=Number(row[cTot])||0;
+        const k=nn.joined;
+        if(!byClient[k]) byClient[k]=Object.assign(nn,{partite:[],totale:0});
+        const pu=part.toUpperCase();
+        if(byClient[k].partite.indexOf(pu)===-1) byClient[k].partite.push(pu);
+        byClient[k].totale+=tot;
+      }
+      scadData={fileName:file.name, list:Object.values(byClient)};
+      renderIncassi();
+    }catch(err){ alert('Errore lettura scadenziario: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
+
 // ═══════ LISTA CLIENTI — MASTRINO DARE/AVERE (Fatturato/Incassato) ═══════
 let xlsxClienti = null;     // [{display,set,joined,fatturato,incasso}]
 let clientiFileName = '';
@@ -1878,8 +2019,8 @@ function handleClientiUpload(input){
           break;
         }
       }
-      if(h===-1 || cD===-1 || cA===-1){ alert('Formato non riconosciuto: serve il mastrino clienti con colonne Sottoconto, Causale, Dare €, Avere €.'); return; }
-      if(cP===-1){ alert('Nel file clienti non trovo la colonna "Partita": senza di essa non posso attribuire il Dare/Avere alle sole partite DT (Di Tower). Aggiungi la colonna Partita quando esporti il mastrino, oppure inviami il file così verifico il formato.'); return; }
+      if(h===-1 || cD===-1 || cA===-1){ alert('Formato non riconosciuto: serve il mastrino clienti con colonne Sottoconto, Causale, Descrizione, Dare €, Avere €.'); return; }
+      if(cDesc===-1){ alert('Nel file clienti non trovo la colonna "Descrizione": serve per riconoscere le righe Di Tower (descrizione che inizia per DT). Inviami il file così verifico il formato.'); return; }
       const num=v=>{
         if(typeof v==='number') return v;
         if(v==null||v==='') return 0;
@@ -1887,23 +2028,35 @@ function handleClientiUpload(input){
         if(s.indexOf(',')>-1) s=s.replace(/\./g,'').replace(',','.');
         return parseFloat(s)||0;
       };
-      const agg={};
+      // Raccoglie tutte le righe per cliente
+      const perClient={};
       for(let i=h+1;i<rows.length;i++){
         const r=rows[i]; if(!r||!r.length) continue;
         const nm=_normNomeGenya(r[cN]); if(!nm) continue;
-        // Imputabile a Di Tower SOLO se la partita inizia con DT
-        const part=String(r[cP]==null?'':r[cP]).trim().toUpperCase();
-        if(!part.startsWith('DT')) continue;
         const caus=String(r[cC]==null?'':r[cC]).trim().toUpperCase();
-        const descr=cDesc>-1 ? String(r[cDesc]==null?'':r[cDesc]).toLowerCase() : '';
-        if(caus==='T01' || caus==='S01' || /apertura conti|chiusura conti/.test(descr)) continue; // riporti di saldo
+        const desc=String(r[cDesc]==null?'':r[cDesc]).trim().toUpperCase();
+        if(caus==='T01' || caus==='S01' || /APERTURA CONTI|CHIUSURA CONTI/.test(desc)) continue; // riporti di saldo
+        const part=cP>-1 ? String(r[cP]==null?'':r[cP]).trim().toUpperCase() : '';
         const k=nm.joined;
-        if(!agg[k]) agg[k]={display:nm.display, set:nm.set, joined:k, flat:nm.flat, fatturato:0, incasso:0};
-        agg[k].fatturato+=num(r[cD]); agg[k].incasso+=num(r[cA]);
+        if(!perClient[k]) perClient[k]={nn:nm, rows:[]};
+        perClient[k].rows.push({ desc, part, dare:num(r[cD]), avere:num(r[cA]) });
       }
-      xlsxClienti=Object.values(agg);
-      const box=document.getElementById('clienti-results');
-      if(box) box.innerHTML=renderClientiResults();
+      // Riconosce un codice DT ovunque nella descrizione (es. "DT2U5", "Vendita DT 2 U5", "DT-0L4")
+      const isDT = s => /DT[\s\-_.]?\d/.test(s) || /\bDT\b/.test(s);
+      // Per ogni cliente, conto solo le righe la cui descrizione contiene un codice DT:
+      // Fatturato = somma Dare di quelle righe; Incassato = somma Avere di quelle righe.
+      xlsxClienti = Object.values(perClient).map(pc=>{
+        const dtPart=new Set(); let fatturato=0, incasso=0;
+        pc.rows.forEach(row=>{
+          if(isDT(row.desc)){
+            fatturato+=row.dare;
+            incasso+=row.avere;
+            if(row.part) dtPart.add(row.part);
+          }
+        });
+        return { display:pc.nn.display, set:pc.nn.set, joined:pc.nn.joined, flat:pc.nn.flat, partite:[...dtPart], fatturato, incasso };
+      }).filter(c=> c.fatturato || c.incasso || c.partite.length);
+      renderIncassi();
     }catch(err){ alert('Errore lettura file clienti: '+err.message); }
   };
   reader.readAsArrayBuffer(file);
