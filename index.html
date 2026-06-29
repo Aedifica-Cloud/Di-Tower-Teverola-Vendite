@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 12:18</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 13:05</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -436,8 +436,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
             <label>Tipo Accordo</label>
             <select id="fac">
               <option value="">— nessuno —</option>
-              <option value="Vendita">Vendita</option>
-              <option value="Locazione">Locazione</option>
+              <option value="Acquisto">Acquisto</option>
+              <option value="Permuta">Permuta</option>
               <option value="In trattativa">In trattativa</option>
             </select>
           </div>
@@ -453,8 +453,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
             </div>
           </div>
           <div class="fg full" id="fg-note">
-            <label>Note interne</label>
-            <textarea id="fnt" placeholder="Condizioni, scadenze, annotazioni…"></textarea>
+            <label>Note interne — scrivi una nota e premi Salva, finirà nell'archivio sotto</label>
+            <textarea id="fnt" placeholder="Scrivi una nuova nota…"></textarea>
+            <div id="note-archive" style="margin-top:10px;"></div>
           </div>
         </div>
       </div>
@@ -482,18 +483,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 
     <div class="mfoot">
       <span id="msaved">✓ Salvato</span>
-      <button class="btn btn-danger" id="btn-clearhist" onclick="clearHistory()">🗑 Cancella storico</button>
       <button class="btn" id="btn-edit" style="background:#e8f0fe;color:#1a2e4a;border:1.5px solid #b0c4e8;display:none" onclick="unlockForm()">✏️ Modifica</button>
       <button class="btn btn-g" id="btn-cancel" onclick="cm()" style="display:none">Annulla</button>
       <button class="btn btn-p" id="btn-save" onclick="save()" style="display:none">💾 Salva Scheda</button>
-    </div>
-    <hr class="hsep" id="hist-sep">
-    <div class="history-wrap" id="hist-wrap">
-      <div class="history-title">
-        <span>📋 Storico Modifiche</span>
-        <span id="hist-count" style="font-size:10px;color:#bbb;"></span>
-      </div>
-      <div id="hist-list"></div>
     </div>
   </div>
 </div>
@@ -587,6 +579,7 @@ function applySnapshot(j) {
         flds.forEach(f => { if (src[f] !== undefined) D[p].units[uid][f] = src[f]; });
         if (Array.isArray(src.history)) D[p].units[uid].history = src.history;
         if (Array.isArray(src.sal)) D[p].units[uid].sal = src.sal;
+        if (Array.isArray(src.noteLog)) D[p].units[uid].noteLog = src.noteLog;
       });
     });
   }
@@ -625,7 +618,7 @@ function store() {
         phone:u.phone||'', email:u.email||'', date:u.date||'', notaio:u.notaio||'',
         notes:u.notes||'', accordo:u.accordo||'', drive:u.drive||'', dur:u.dur||'',
         box1:u.box1||'', box2:u.box2||'',
-        history:u.history||[], sal:u.sal||[]
+        history:u.history||[], sal:u.sal||[], noteLog:u.noteLog||[]
       };
     });
   });
@@ -678,18 +671,20 @@ function renderKPI() {
   const totMq   = units.reduce((s,u)=>s+parseSL(u.sl), 0);
   const assegMq = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+parseSL(u.sl), 0);
 
-  // ricavi
-  const previsti       = Math.round(totMq * PRICE_PER_MQ);
-  const contrattualiz  = units.filter(u=>u.st==='venduto').reduce((s,u)=>s+eurF(u), 0);
-  const daContrattual  = previsti - contrattualiz;
-
   const pa = tot?(a/tot*100).toFixed(0):0;
   const pr = tot?(r/tot*100).toFixed(0):0;
   const pd = tot?(d/tot*100).toFixed(0):0;
 
-  // % contrattualizzato sul previsto
-  const pctContr = previsti>0 ? Math.round(contrattualiz/previsti*100) : 0;
-  const pctDaContr = 100 - pctContr;
+  // ── Ricavi (logica Di Park) ──
+  const vUnits   = units.filter(u=>u.st==='venduto');
+  const isAcq    = u => u.accordo==='Acquisto' || u.accordo==='Vendita';   // retrocompatibilità col vecchio valore "Vendita"
+  const prevOper = Math.round(totMq * PRICE_PER_MQ);                                     // Ricavi Previsti Operazione
+  const eur      = vUnits.filter(isAcq).reduce((s,u)=>s+eurF(u), 0);                     // Ricavi del Venduto (accordo Acquisto)
+  const permVal  = vUnits.filter(u=>u.accordo==='Permuta').reduce((s,u)=>{ const c=eurF(u); return s + (c>0?c:Math.round(parseSL(u.sl)*PRICE_PER_MQ)); }, 0); // Importo Permuta
+  const dispVal  = Math.round(units.filter(u=>u.st==='disponibile').reduce((s,u)=>s+parseSL(u.sl),0)*PRICE_PER_MQ); // Ricavi da Effettuare
+  const vAcqP    = vUnits.filter(u=>isAcq(u) && eurF(u)>0);
+  const mqAcq    = vAcqP.reduce((s,u)=>s+parseSL(u.sl),0);
+  const prezzoMqAcq = mqAcq>0 ? Math.round(eur/mqAcq) : 0;                               // Prezzo al mq del venduto
 
   document.getElementById('kpi').innerHTML = `
     <div class="kpi t">
@@ -706,20 +701,29 @@ function renderKPI() {
     <div class="kpi r"><div class="kl">Riservate</div><div class="kv">${r}</div><div class="ks">${pr}% del totale</div></div>
     <div class="kpi d"><div class="kl">Disponibili</div><div class="kv">${d}</div><div class="ks">${pd}% del totale</div></div>
     <div class="kpi" style="background:#f0f4ff;border-color:#c8d8f8">
-      <div class="kl">💶 Ricavi Totali Previsti</div>
-      <div class="kv" style="color:#3a5fa0;font-size:17px">€ ${previsti.toLocaleString('it-IT')}</div>
-      <div class="ks">${totMq>0?totMq.toLocaleString('it-IT',{maximumFractionDigits:0})+' mq × €'+PRICE_PER_MQ.toLocaleString('it-IT'):''}</div>
+      <div class="kl">Ricavi Previsti Operazione</div>
+      <div class="kv" style="color:#3a5fa0;font-size:15px">€ ${prevOper.toLocaleString('it-IT')}</div>
+      <div class="ks">somma prezzi previsionali (€${PRICE_PER_MQ.toLocaleString('it-IT')}/mq)</div>
     </div>
     <div class="kpi" style="background:#fffbe6;border-color:#f0d060">
-      <div class="kl">✅ Ricavi Contrattualizzati</div>
-      <div class="kv" style="color:#b8860b;font-size:17px">${contrattualiz>0?'€ '+fmtN(contrattualiz):'—'}</div>
-      <div class="ks">${pctContr}% del previsto · vendite con prezzo</div>
-      <div class="pbar" style="margin-top:6px"><div class="pb-a" style="width:${pctContr}%"></div><div class="pb-d" style="width:${pctDaContr}%"></div></div>
+      <div class="kl">Ricavi del Venduto</div>
+      <div class="kv" style="color:#b8860b;font-size:15px">${eur>0?'€ '+eur.toLocaleString('it-IT'):'—'}</div>
+      <div class="ks">prezzo concordato · vendute con accordo Acquisto</div>
     </div>
-    <div class="kpi" style="background:#fff0f0;border-color:#f8c8c8">
-      <div class="kl">📋 Ricavi da Contrattualizzare</div>
-      <div class="kv" style="color:#c62828;font-size:17px">€ ${daContrattual.toLocaleString('it-IT')}</div>
-      <div class="ks">${pctDaContr}% del previsto · previsti − contrattualizzati</div>
+    <div class="kpi" style="background:#f4eefb;border-color:#d7c4ee">
+      <div class="kl">Importo Permuta</div>
+      <div class="kv" style="color:#5e35b1;font-size:15px">${permVal>0?'€ '+permVal.toLocaleString('it-IT'):'—'}</div>
+      <div class="ks">accordo Permuta · concordato o, se assente, previsionale</div>
+    </div>
+    <div class="kpi" style="background:#eef7ee;border-color:#bfe0c0">
+      <div class="kl">Ricavi da Effettuare</div>
+      <div class="kv" style="color:#2e7d32;font-size:15px">${dispVal>0?'€ '+dispVal.toLocaleString('it-IT'):'—'}</div>
+      <div class="ks">unità disponibili (previsionale)</div>
+    </div>
+    <div class="kpi" style="background:#fffbe6;border-color:#f0d060">
+      <div class="kl">Prezzo al mq Venduto</div>
+      <div class="kv" style="color:#b8860b;font-size:15px">${prezzoMqAcq>0?'€ '+prezzoMqAcq.toLocaleString('it-IT'):'—'}</div>
+      <div class="ks">${vAcqP.length>0?'su '+vAcqP.length+' vendite con prezzo':'nessun prezzo inserito'}</div>
     </div>`;
 }
 
@@ -936,7 +940,7 @@ function openM(uid) {
   document.getElementById('fac').value = u.accordo||'';
   document.getElementById('fno').value = u.notaio||'';
   document.getElementById('fdr').value = u.drive||'';
-  document.getElementById('fnt').value = u.notes||'';
+  document.getElementById('fnt').value = '';   // la casella è per una NUOVA nota; le vecchie stanno nell'archivio
   document.getElementById('fbx1').value = u.box1||'';
   document.getElementById('fbx2').value = u.box2||'';
 
@@ -958,7 +962,7 @@ function openM(uid) {
     </div>`;
 
   rb();
-  renderHistory(u);
+  renderNoteArchive(u);
   switchMTab('scheda');
   setFormLocked(isGuest() ? true : false);
   trackPresence({ unita: uid });
@@ -1135,7 +1139,13 @@ function save() {
   u.accordo = document.getElementById('fac').value;
   u.notaio = document.getElementById('fno').value.trim();
   u.drive = document.getElementById('fdr').value.trim();
-  u.notes = document.getElementById('fnt').value.trim();
+  // Nuova nota → archivio (append) e svuota la casella; le vecchie note restano nell'archivio
+  const newNote = document.getElementById('fnt').value.trim();
+  if (newNote) {
+    if (!Array.isArray(u.noteLog)) u.noteLog = [];
+    u.noteLog.push({ ts: tsNow(), text: newNote });
+    document.getElementById('fnt').value = '';
+  }
   u.box1 = document.getElementById('fbx1').value.trim();
   u.box2 = document.getElementById('fbx2').value.trim();
 
@@ -1155,7 +1165,7 @@ function save() {
     u.history.push({ ts:tsNow(), changes });
   }
   store();
-  renderHistory(u);
+  renderNoteArchive(u);
   setFormLocked(true);
   // Se aperto dal tab parcheggio, aggiorna il parcheggio; altrimenti aggiorna il piano uffici
   if (prevParkProj) {
@@ -1168,11 +1178,31 @@ function save() {
   setTimeout(() => ms.style.display='none', 2000);
 }
 
-// ═══════ HISTORY ═══════
+// ═══════ ARCHIVIO NOTE (logica Di Park) ═══════
+function _noteItem(ts, text, legacy){
+  return `<div style="border-left:3px solid #c9a84c;background:#faf7f1;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">
+    <div style="font-size:10px;color:#aaa;margin-bottom:2px;">${ts?('🕒 '+esc(ts)):(legacy?'nota precedente':'')}</div>
+    <div style="font-size:12px;color:#1a2e4a;white-space:pre-wrap;">${esc(text)}</div>
+  </div>`;
+}
+function renderNoteArchive(u){
+  const el = document.getElementById('note-archive');
+  if(!el) return;
+  const log = Array.isArray(u.noteLog) ? u.noteLog : [];
+  const legacy = (u.notes||'').trim();
+  if(!log.length && !legacy){ el.innerHTML=''; return; }
+  let items = [...log].reverse().map(n=>_noteItem(n.ts, n.text)).join('');
+  if(legacy) items += _noteItem('', legacy, true);
+  el.innerHTML = `<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#999;margin:4px 0 6px;">📒 Archivio note</div>${items}`;
+}
+
+// ═══════ HISTORY (storico rimosso dall'interfaccia, diff registrato internamente) ═══════
 function renderHistory(u) {
   const hist = u.history || [];
   const el = document.getElementById('hist-list');
-  document.getElementById('hist-count').textContent = hist.length ? `${hist.length} modifica${hist.length>1?'e':''}` : '';
+  if (!el) return;   // sezione storico rimossa dall'interfaccia
+  const cnt = document.getElementById('hist-count');
+  if (cnt) cnt.textContent = hist.length ? `${hist.length} modifica${hist.length>1?'e':''}` : '';
   if (!hist.length) { el.innerHTML = '<div class="history-empty">Nessuna modifica registrata.</div>'; return; }
   el.innerHTML = [...hist].reverse().map(entry => {
     const changes = entry.changes.map(c => {
@@ -1207,8 +1237,8 @@ function floorStats(key) {
   const dispMq   = d.reduce((s,u)=>s+parseSL(u.sl),0);
   const previsti = Math.round(totMq * PRICE_PER_MQ);
   const daContr  = previsti - ricavi;
-  const acq = [...a,...r].filter(u=>u.accordo==='Vendita').length;
-  const loc = [...a,...r].filter(u=>u.accordo==='Locazione').length;
+  const acq = [...a,...r].filter(u=>u.accordo==='Acquisto'||u.accordo==='Vendita').length;
+  const loc = [...a,...r].filter(u=>u.accordo==='Permuta').length;
   const tra = [...a,...r].filter(u=>u.accordo==='In trattativa').length;
   return {
     key, name:p.name, tot:units.length,
@@ -1231,8 +1261,8 @@ function renderDashboard() {
   const cards = stats.map(s => {
     const pa=pct(s.a,s.tot), pr=pct(s.r,s.tot), pd=pct(s.d,s.tot);
     const tags = [
-      s.acq?`<span class="dtag acq">Vendita: ${s.acq}</span>`:'',
-      s.loc?`<span class="dtag loc">Locazione: ${s.loc}</span>`:'',
+      s.acq?`<span class="dtag acq">Acquisto: ${s.acq}</span>`:'',
+      s.loc?`<span class="dtag loc">Permuta: ${s.loc}</span>`:'',
       s.tra?`<span class="dtag tra">Trattativa: ${s.tra}</span>`:'',
     ].join('');
     return `
@@ -1403,8 +1433,8 @@ function renderDashboard() {
         <hr class="dsep">
         <div style="margin-top:4px">
           <span class="drow-lbl" style="font-size:12px;font-weight:700;margin-bottom:6px;display:block;">Tipo accordo</span>
-          ${G.acq?`<span class="dtag acq">Vendita: ${G.acq}</span>`:''}
-          ${G.loc?`<span class="dtag loc">Locazione: ${G.loc}</span>`:''}
+          ${G.acq?`<span class="dtag acq">Acquisto: ${G.acq}</span>`:''}
+          ${G.loc?`<span class="dtag loc">Permuta: ${G.loc}</span>`:''}
           ${G.tra?`<span class="dtag tra">Trattativa: ${G.tra}</span>`:''}
         </div>
       </div>
@@ -1423,7 +1453,7 @@ function renderDashboard() {
         <td>${u.tipo}</td>
         <td style="text-align:right">${sl>0?sl.toLocaleString('it-IT',{minimumFractionDigits:2}):'—'}</td>
         <td style="text-align:right">${conc>0?'€ '+fmtN(conc):'<span style="color:#bbb;font-style:italic">—</span>'}</td>
-        <td>${u.accordo?`<span class="dtag ${u.accordo==='Locazione'?'loc':u.accordo==='Vendita'?'acq':'tra'}">${u.accordo}</span>`:'—'}</td>
+        <td>${u.accordo?`<span class="dtag ${u.accordo==='Permuta'?'loc':(u.accordo==='Acquisto'||u.accordo==='Vendita')?'acq':'tra'}">${u.accordo}</span>`:'—'}</td>
         <td><span class="badge-sm ${u.st}">${STLBL[u.st]||u.st}</span>${u.owner?`<br><span style="font-size:10px;color:#666">${esc(u.owner)}</span>`:''}</td>
       </tr>`;
     }).join('');
