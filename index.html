@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 13:05</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 13:40</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -495,6 +495,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 const SUPABASE_URL = "https://pwmqkqhefjlcmbhqghzk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3bXFrcWhlZmpsY21iaHFnaHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzODg4MDksImV4cCI6MjA5NTk2NDgwOX0.xvfPXM2as8UKxXrEvOmwe0Eutj0kq9sQ1KRPj0ngkuM";
 const STATE_ID = "ditower1";
+const FILES_ID = "ditower1_files";   // riga separata per i file Excel condivisi (clienti, cantiere)
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ═══════ DATI BASE ═══════
@@ -588,6 +589,7 @@ function applySnapshot(j) {
   if (el) el.textContent = '🟢 Sincronizzato ' + t;
   if (proj === 'riepilogo') renderDashboard();
   else if (proj === 'incassi') renderIncassi();
+  else if (proj === 'cantiere') renderCantiere();
   else { renderKPI(); renderPlan(); }
 }
 
@@ -602,9 +604,52 @@ function fetchState() {
 function load() {
   document.getElementById('saved').textContent = 'Connessione…';
   fetchState();
+  fetchFiles();
   sb.channel('app_state_' + STATE_ID)
     .on('postgres_changes', { event:'*', schema:'public', table:'app_state', filter:'id=eq.'+STATE_ID }, () => fetchState())
+    .on('postgres_changes', { event:'*', schema:'public', table:'app_state', filter:'id=eq.'+FILES_ID }, () => fetchFiles())
     .subscribe();
+}
+
+// ═══════ FILE EXCEL CONDIVISI (clienti + cantiere) ═══════
+// Serializza i file caricati per salvarli su Supabase (visibili a tutti, anche ospiti)
+function serializeFiles() {
+  return {
+    clienti: (typeof xlsxClienti !== 'undefined' && xlsxClienti)
+      ? { fileName: clientiFileName || '', list: xlsxClienti.map(c => ({ display:c.display, fatturato:c.fatturato||0, incasso:c.incasso||0, partite:c.partite||[] })) }
+      : null,
+    cantiere: (typeof contabileDiTower !== 'undefined' && contabileDiTower) ? contabileDiTower : null,
+  };
+}
+
+// Ricostruisce le variabili locali dai dati condivisi
+function applyFiles(f) {
+  if (!f) return;
+  if (f.clienti && Array.isArray(f.clienti.list)) {
+    clientiFileName = f.clienti.fileName || '';
+    xlsxClienti = f.clienti.list.map(c => {
+      const nn = _normNomeGenya(c.display) || { display:c.display, set:new Set(), joined:'', flat:'' };
+      return Object.assign(nn, { display:c.display, fatturato:c.fatturato||0, incasso:c.incasso||0, partite:c.partite||[] });
+    });
+  }
+  if (f.cantiere) contabileDiTower = f.cantiere;
+}
+
+// Salva i file condivisi su Supabase (solo editor/admin); fa scattare il realtime sugli altri
+function saveFiles() {
+  if (isGuest()) return;
+  sb.from('app_state').upsert({ id:FILES_ID, data:serializeFiles(), updated_at:new Date().toISOString() })
+    .then(({ error }) => { if (error) console.warn('Salvataggio file condivisi:', error.message); });
+}
+
+function fetchFiles() {
+  sb.from('app_state').select('data').eq('id', FILES_ID).maybeSingle()
+    .then(({ data, error }) => {
+      if (error || !data) return;
+      applyFiles(data.data);
+      if (proj === 'incassi') renderIncassi();
+      else if (proj === 'cantiere') renderCantiere();
+    });
 }
 
 function store() {
@@ -1509,9 +1554,10 @@ function renderIncassi() {
       <h2 style="font-size:20px;font-weight:800;color:#1a2e4a;margin-bottom:6px;">💶 Incassi Clienti</h2>
       <p style="font-size:13px;color:#666;margin-bottom:18px;">Carica il <strong>mastrino clienti</strong> (Sottoconto, Causale, Descrizione, Partita, Dare, Avere). Per i clienti del progetto Di Tower leggo la <strong>descrizione</strong>: se inizia per <strong>DT</strong> la riga è di Di Tower → sommo il <strong>Dare</strong> (Fatturato) e l'<strong>Avere</strong> (Incassato) collegato a quelle partite. Il file è letto solo nel browser, non viene salvato.</p>
       <div style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+        ${!isGuest() ? `
         <input type="file" id="clienti-input" accept=".xlsx,.xls" style="display:none;" onchange="handleClientiUpload(this)">
-        <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;">📂 Carica file clienti</button>
-        ${haveCli?ok(clientiFileName, xlsxClienti.length+' clienti DT'):''}
+        <button onclick="document.getElementById('clienti-input').click()" style="background:#1a2e4a;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;">📂 Carica file clienti</button>` : ''}
+        ${haveCli ? ok(clientiFileName, xlsxClienti.length+' clienti DT') : (isGuest() ? '<span style="color:#999;font-size:12px;">Nessun file ancora caricato.</span>' : '')}
       </div>
       <div id="incassi-results">${renderIncassiCombined()}</div>
     </div>`;
@@ -2087,6 +2133,7 @@ function handleClientiUpload(input){
         return { display:pc.nn.display, set:pc.nn.set, joined:pc.nn.joined, flat:pc.nn.flat, partite:[...dtPart], fatturato, incasso };
       }).filter(c=> c.fatturato || c.incasso || c.partite.length);
       renderIncassi();
+      saveFiles();   // condivide il file con tutti gli utenti collegati
     }catch(err){ alert('Errore lettura file clienti: '+err.message); }
   };
   reader.readAsArrayBuffer(file);
@@ -2195,6 +2242,7 @@ function handleContabileUpload(input){
       if(!costi.length&&!ricavi.length){ alert('Nessuna voce di costo/ricavo trovata nel file.'); return; }
       contabileDiTower={costi,ricavi,totC:costi.reduce((s,c)=>s+c.val,0),totR:ricavi.reduce((s,c)=>s+c.val,0),fileName:file.name,centro};
       renderCantiere();
+      saveFiles();   // condivide il file con tutti gli utenti collegati
     }catch(err){ alert('Errore lettura situazione contabile: '+err.message); }
   };
   reader.readAsArrayBuffer(file);
@@ -2223,7 +2271,7 @@ function _econColumns(costi,ricavi){
 
 function renderCantiere(){
   const g=contabileDiTower;
-  const upBtn=`<label style="cursor:pointer;background:#1a2e4a;color:#fff;padding:9px 16px;border-radius:8px;font-size:12px;font-weight:700;display:inline-block;">📂 ${g?'Aggiorna situazione contabile':'Carica situazione contabile'}<input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleContabileUpload(this)"></label>`;
+  const upBtn = isGuest() ? (g?'':'<span style="color:#999;font-size:12px;">Nessuna situazione contabile ancora caricata.</span>') : `<label style="cursor:pointer;background:#1a2e4a;color:#fff;padding:9px 16px;border-radius:8px;font-size:12px;font-weight:700;display:inline-block;">📂 ${g?'Aggiorna situazione contabile':'Carica situazione contabile'}<input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleContabileUpload(this)"></label>`;
   let body;
   if(g){
     const ris=g.totR-g.totC, perdita=ris<0;
