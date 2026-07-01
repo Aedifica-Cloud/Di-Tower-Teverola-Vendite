@@ -321,7 +321,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#333
 <div class="header">
   <div class="logo">DI TOWER <span>Teverola</span></div>
   <div style="font-size:12px;opacity:.5;margin-left:8px;">Gestionale Unità</div>
-  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 13:40</div>
+  <div style="font-size:10px;opacity:.45;margin-left:8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;">v. 16/06/2026 · 14:25</div>
   <div class="saved-lbl" id="saved"></div>
   <!-- Presenza live (solo per utenti loggati) -->
   <div class="presence-zone" id="presence-zone" style="display:none;">
@@ -590,6 +590,7 @@ function applySnapshot(j) {
   if (proj === 'riepilogo') renderDashboard();
   else if (proj === 'incassi') renderIncassi();
   else if (proj === 'cantiere') renderCantiere();
+  else if (proj === 'pi1' || proj === 'pi2') { renderParkingKPI(); renderParking(); }
   else { renderKPI(); renderPlan(); }
 }
 
@@ -679,6 +680,16 @@ function store() {
 
 // ═══════ COSTANTI ═══════
 const PRICE_PER_MQ = 2400;
+const BOX_PRICE_PER_MQ = 1000;   // €/mq per i box auto
+const BOX_MQ = 12.5;             // mq per singolo box/posto auto
+const N_BOX_PI1 = 101, N_BOX_PI2 = 114;
+function boxValue(nPosti){ return Math.round(nPosti * BOX_MQ * BOX_PRICE_PER_MQ); }
+// Box liberi = totali − assegnati (gli assegnati sono già inclusi nel prezzo degli uffici)
+function freeBoxCount(){
+  const freePi1 = N_BOX_PI1 - Object.keys(buildOwnerMap('pi1')).length;
+  const freePi2 = N_BOX_PI2 - Object.keys(buildOwnerMap('pi2')).length;
+  return Math.max(0, freePi1) + Math.max(0, freePi2);
+}
 
 // ═══════ HELPERS ═══════
 function parseSL(sl) {
@@ -954,6 +965,11 @@ function renderParkingKPI() {
     </div>
     <div class="kpi a"><div class="kl">Assegnati</div><div class="kv">${a}</div><div class="ks">${pa}% del totale</div></div>
     <div class="kpi d"><div class="kl">Liberi</div><div class="kv">${d}</div><div class="ks">${pd}% del totale</div></div>
+    <div class="kpi" style="background:#f0f4ff;border-color:#c8d8f8">
+      <div class="kl">Ricavi Previsti Box Auto (liberi)</div>
+      <div class="kv" style="color:#3a5fa0;font-size:15px">€ ${boxValue(d).toLocaleString('it-IT')}</div>
+      <div class="ks">${d} posti liberi × ${BOX_MQ.toLocaleString('it-IT')} mq × €${BOX_PRICE_PER_MQ.toLocaleString('it-IT')}/mq · assegnati già nel prezzo uffici</div>
+    </div>
     <div class="kpi" style="background:#fff8e1;border-color:#ffe082">
       <div class="kl">ℹ️ Come funziona</div>
       <div class="kv" style="font-size:11px;color:#888;font-weight:400;line-height:1.4;">I posti si colorano in base ai <strong>campi "Posto Auto"</strong> compilati nelle schede degli uffici.</div>
@@ -1461,11 +1477,11 @@ function renderDashboard() {
         </div>
         <hr class="dsep">
         <div class="drow" style="margin-top:6px">
-          <span class="drow-lbl" style="font-size:13px;font-weight:700;">💶 Ricavi Totali Previsti (tutti i piani)</span>
-          <span class="drow-val" style="font-size:16px;color:#3a5fa0;font-weight:700;">€ ${fmtN(G.previsti)}</span>
+          <span class="drow-lbl" style="font-size:13px;font-weight:700;">💶 Ricavi Previsti Operazione (uffici + box liberi)</span>
+          <span class="drow-val" style="font-size:16px;color:#3a5fa0;font-weight:700;">€ ${fmtN(G.previsti + boxValue(freeBoxCount()))}</span>
         </div>
         <div class="drow" style="margin-top:0">
-          <span class="drow-lbl" style="font-size:10px;color:#aaa;">${fmtN(Math.round(G.totMq))} mq × €${PRICE_PER_MQ.toLocaleString('it-IT')}/mq</span>
+          <span class="drow-lbl" style="font-size:10px;color:#aaa;">uffici ${fmtN(Math.round(G.totMq))} mq × €${PRICE_PER_MQ.toLocaleString('it-IT')}/mq + ${freeBoxCount()} box liberi × ${BOX_MQ.toLocaleString('it-IT')} mq × €${BOX_PRICE_PER_MQ.toLocaleString('it-IT')} = € ${fmtN(boxValue(freeBoxCount()))} box · assegnati già nel prezzo uffici</span>
         </div>
         <div class="drow">
           <span class="drow-lbl" style="font-size:13px;font-weight:700;">✅ Ricavi Contrattualizzati</span>
